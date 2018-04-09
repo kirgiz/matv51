@@ -1,0 +1,19 @@
+version: '2'
+services:
+    matv51-app:
+        image: matv51
+        environment:
+            - SPRING_PROFILES_ACTIVE=prod,swagger
+            - SPRING_DATASOURCE_URL=jdbc:postgresql://matv51-postgresql:5432/matv51
+            - JHIPSTER_SLEEP=10 # gives time for the database to boot before the application
+            - SPRING_DATA_ELASTICSEARCH_CLUSTER_NODES=matv51-elasticsearch:9300
+        ports:
+            - 8080:8080
+    matv51-postgresql:
+        extends:
+            file: postgresql.yml
+            service: matv51-postgresql
+    matv51-elasticsearch:
+        extends:
+            file: elasticsearch.yml
+            service: matv51-elasticsearch

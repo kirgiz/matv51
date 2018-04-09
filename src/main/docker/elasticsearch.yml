@@ -1,0 +1,9 @@
+version: '2'
+services:
+    matv51-elasticsearch:
+        image: elasticsearch:2.4.1
+        # volumes:
+        #     - ~/volumes/jhipster/matv51/elasticsearch/:/usr/share/elasticsearch/data/
+        ports:
+            - 9200:9200
+            - 9300:9300
