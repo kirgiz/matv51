@@ -7,10 +7,13 @@ import testob.com.app.service.dto.AddressclassificationDTO;
 import testob.com.app.service.mapper.AddressclassificationMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Optional;
 
 
 import static org.elasticsearch.index.query.QueryBuilders.*;
@@ -52,10 +55,10 @@ public class AddressclassificationService {
     }
 
     /**
-     *  Get all the addressclassifications.
+     * Get all the addressclassifications.
      *
-     *  @param pageable the pagination information
-     *  @return the list of entities
+     * @param pageable the pagination information
+     * @return the list of entities
      */
     @Transactional(readOnly = true)
     public Page<AddressclassificationDTO> findAll(Pageable pageable) {
@@ -64,41 +67,42 @@ public class AddressclassificationService {
             .map(addressclassificationMapper::toDto);
     }
 
+
     /**
-     *  Get one addressclassification by id.
+     * Get one addressclassification by id.
      *
-     *  @param id the id of the entity
-     *  @return the entity
+     * @param id the id of the entity
+     * @return the entity
      */
     @Transactional(readOnly = true)
-    public AddressclassificationDTO findOne(Long id) {
+    public Optional<AddressclassificationDTO> findOne(Long id) {
         log.debug("Request to get Addressclassification : {}", id);
-        Addressclassification addressclassification = addressclassificationRepository.findOne(id);
-        return addressclassificationMapper.toDto(addressclassification);
+        return addressclassificationRepository.findById(id)
+            .map(addressclassificationMapper::toDto);
     }
 
     /**
-     *  Delete the  addressclassification by id.
+     * Delete the addressclassification by id.
      *
-     *  @param id the id of the entity
+     * @param id the id of the entity
      */
     public void delete(Long id) {
         log.debug("Request to delete Addressclassification : {}", id);
-        addressclassificationRepository.delete(id);
-        addressclassificationSearchRepository.delete(id);
+        addressclassificationRepository.deleteById(id);
+        addressclassificationSearchRepository.deleteById(id);
     }
 
     /**
      * Search for the addressclassification corresponding to the query.
      *
-     *  @param query the query of the search
-     *  @param pageable the pagination information
-     *  @return the list of entities
+     * @param query the query of the search
+     * @param pageable the pagination information
+     * @return the list of entities
      */
     @Transactional(readOnly = true)
     public Page<AddressclassificationDTO> search(String query, Pageable pageable) {
         log.debug("Request to search for a page of Addressclassifications for query {}", query);
-        Page<Addressclassification> result = addressclassificationSearchRepository.search(queryStringQuery(query), pageable);
-        return result.map(addressclassificationMapper::toDto);
+        return addressclassificationSearchRepository.search(queryStringQuery(query), pageable)
+            .map(addressclassificationMapper::toDto);
     }
 }

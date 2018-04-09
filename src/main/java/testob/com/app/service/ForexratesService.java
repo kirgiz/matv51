@@ -7,9 +7,11 @@ import testob.com.app.service.dto.ForexratesDTO;
 import testob.com.app.service.mapper.ForexratesMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Optional;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -54,9 +56,9 @@ public class ForexratesService {
     }
 
     /**
-     *  Get all the forexrates.
+     * Get all the forexrates.
      *
-     *  @return the list of entities
+     * @return the list of entities
      */
     @Transactional(readOnly = true)
     public List<ForexratesDTO> findAll() {
@@ -66,35 +68,36 @@ public class ForexratesService {
             .collect(Collectors.toCollection(LinkedList::new));
     }
 
+
     /**
-     *  Get one forexrates by id.
+     * Get one forexrates by id.
      *
-     *  @param id the id of the entity
-     *  @return the entity
+     * @param id the id of the entity
+     * @return the entity
      */
     @Transactional(readOnly = true)
-    public ForexratesDTO findOne(Long id) {
+    public Optional<ForexratesDTO> findOne(Long id) {
         log.debug("Request to get Forexrates : {}", id);
-        Forexrates forexrates = forexratesRepository.findOne(id);
-        return forexratesMapper.toDto(forexrates);
+        return forexratesRepository.findById(id)
+            .map(forexratesMapper::toDto);
     }
 
     /**
-     *  Delete the  forexrates by id.
+     * Delete the forexrates by id.
      *
-     *  @param id the id of the entity
+     * @param id the id of the entity
      */
     public void delete(Long id) {
         log.debug("Request to delete Forexrates : {}", id);
-        forexratesRepository.delete(id);
-        forexratesSearchRepository.delete(id);
+        forexratesRepository.deleteById(id);
+        forexratesSearchRepository.deleteById(id);
     }
 
     /**
      * Search for the forexrates corresponding to the query.
      *
-     *  @param query the query of the search
-     *  @return the list of entities
+     * @param query the query of the search
+     * @return the list of entities
      */
     @Transactional(readOnly = true)
     public List<ForexratesDTO> search(String query) {

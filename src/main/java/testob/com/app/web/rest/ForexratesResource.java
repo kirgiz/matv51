@@ -2,6 +2,7 @@ package testob.com.app.web.rest;
 
 import com.codahale.metrics.annotation.Timed;
 import testob.com.app.service.ForexratesService;
+import testob.com.app.web.rest.errors.BadRequestAlertException;
 import testob.com.app.web.rest.util.HeaderUtil;
 import testob.com.app.service.dto.ForexratesDTO;
 import io.github.jhipster.web.util.ResponseUtil;
@@ -49,7 +50,7 @@ public class ForexratesResource {
     public ResponseEntity<ForexratesDTO> createForexrates(@Valid @RequestBody ForexratesDTO forexratesDTO) throws URISyntaxException {
         log.debug("REST request to save Forexrates : {}", forexratesDTO);
         if (forexratesDTO.getId() != null) {
-            return ResponseEntity.badRequest().headers(HeaderUtil.createFailureAlert(ENTITY_NAME, "idexists", "A new forexrates cannot already have an ID")).body(null);
+            throw new BadRequestAlertException("A new forexrates cannot already have an ID", ENTITY_NAME, "idexists");
         }
         ForexratesDTO result = forexratesService.save(forexratesDTO);
         return ResponseEntity.created(new URI("/api/forexrates/" + result.getId()))
@@ -89,7 +90,7 @@ public class ForexratesResource {
     public List<ForexratesDTO> getAllForexrates() {
         log.debug("REST request to get all Forexrates");
         return forexratesService.findAll();
-        }
+    }
 
     /**
      * GET  /forexrates/:id : get the "id" forexrates.
@@ -101,8 +102,8 @@ public class ForexratesResource {
     @Timed
     public ResponseEntity<ForexratesDTO> getForexrates(@PathVariable Long id) {
         log.debug("REST request to get Forexrates : {}", id);
-        ForexratesDTO forexratesDTO = forexratesService.findOne(id);
-        return ResponseUtil.wrapOrNotFound(Optional.ofNullable(forexratesDTO));
+        Optional<ForexratesDTO> forexratesDTO = forexratesService.findOne(id);
+        return ResponseUtil.wrapOrNotFound(forexratesDTO);
     }
 
     /**

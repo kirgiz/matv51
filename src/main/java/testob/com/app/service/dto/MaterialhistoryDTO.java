@@ -1,6 +1,5 @@
 package testob.com.app.service.dto;
 
-
 import java.time.LocalDate;
 import javax.validation.constraints.*;
 import java.io.Serializable;
@@ -146,7 +145,7 @@ public class MaterialhistoryDTO implements Serializable {
         }
 
         MaterialhistoryDTO materialhistoryDTO = (MaterialhistoryDTO) o;
-        if(materialhistoryDTO.getId() == null || getId() == null) {
+        if (materialhistoryDTO.getId() == null || getId() == null) {
             return false;
         }
         return Objects.equals(getId(), materialhistoryDTO.getId());
@@ -163,8 +162,14 @@ public class MaterialhistoryDTO implements Serializable {
             "id=" + getId() +
             ", code='" + getCode() + "'" +
             ", creationDate='" + getCreationDate() + "'" +
-            ", price='" + getPrice() + "'" +
+            ", price=" + getPrice() +
             ", comments='" + getComments() + "'" +
+            ", transferClassif=" + getTransferClassifId() +
+            ", transferClassif='" + getTransferClassifName() + "'" +
+            ", warehousefrom=" + getWarehousefromId() +
+            ", warehousefrom='" + getWarehousefromName() + "'" +
+            ", warehouseto=" + getWarehousetoId() +
+            ", warehouseto='" + getWarehousetoName() + "'" +
             "}";
     }
 }

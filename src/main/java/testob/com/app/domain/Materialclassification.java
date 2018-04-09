@@ -3,10 +3,11 @@ package testob.com.app.domain;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import org.hibernate.annotations.Cache;
 import org.hibernate.annotations.CacheConcurrencyStrategy;
-import org.springframework.data.elasticsearch.annotations.Document;
 
 import javax.persistence.*;
 import javax.validation.constraints.*;
+
+import org.springframework.data.elasticsearch.annotations.Document;
 import java.io.Serializable;
 import java.util.HashSet;
 import java.util.Set;
@@ -43,22 +44,18 @@ public class Materialclassification implements Serializable {
     private String comments;
 
     @OneToMany(mappedBy = "materialTypeDef")
-    @JsonIgnore
     @Cache(usage = CacheConcurrencyStrategy.NONSTRICT_READ_WRITE)
     private Set<Material> materialCategories = new HashSet<>();
 
     @OneToMany(mappedBy = "materialClassif")
-    @JsonIgnore
     @Cache(usage = CacheConcurrencyStrategy.NONSTRICT_READ_WRITE)
     private Set<Material> materialCategs = new HashSet<>();
 
     @OneToMany(mappedBy = "materialTypeCat")
-    @JsonIgnore
     @Cache(usage = CacheConcurrencyStrategy.NONSTRICT_READ_WRITE)
     private Set<Material> materialCats = new HashSet<>();
 
     @OneToMany(mappedBy = "materialTypeDefDashboard")
-    @JsonIgnore
     @Cache(usage = CacheConcurrencyStrategy.NONSTRICT_READ_WRITE)
     private Set<Dashboard> materialCategoryDashboards = new HashSet<>();
 

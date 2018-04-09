@@ -1,11 +1,8 @@
 package testob.com.app.service.dto;
 
-
 import java.time.LocalDate;
 import javax.validation.constraints.*;
 import java.io.Serializable;
-import java.util.HashSet;
-import java.util.Set;
 import java.util.Objects;
 
 /**
@@ -120,7 +117,7 @@ public class LotDTO implements Serializable {
         }
 
         LotDTO lotDTO = (LotDTO) o;
-        if(lotDTO.getId() == null || getId() == null) {
+        if (lotDTO.getId() == null || getId() == null) {
             return false;
         }
         return Objects.equals(getId(), lotDTO.getId());
@@ -138,9 +135,11 @@ public class LotDTO implements Serializable {
             ", code='" + getCode() + "'" +
             ", description='" + getDescription() + "'" +
             ", creationDate='" + getCreationDate() + "'" +
-            ", numberOfItems='" + getNumberOfItems() + "'" +
+            ", numberOfItems=" + getNumberOfItems() +
             ", comments='" + getComments() + "'" +
-            ", unitBuyPrice='" + getUnitBuyPrice() + "'" +
+            ", unitBuyPrice=" + getUnitBuyPrice() +
+            ", buycurrencylot=" + getBuycurrencylotId() +
+            ", buycurrencylot='" + getBuycurrencylotISOCode() + "'" +
             "}";
     }
 }

@@ -2,10 +2,10 @@ package testob.com.app.web.rest;
 
 import com.codahale.metrics.annotation.Timed;
 import testob.com.app.service.AddressclassificationService;
+import testob.com.app.web.rest.errors.BadRequestAlertException;
 import testob.com.app.web.rest.util.HeaderUtil;
 import testob.com.app.web.rest.util.PaginationUtil;
 import testob.com.app.service.dto.AddressclassificationDTO;
-import io.swagger.annotations.ApiParam;
 import io.github.jhipster.web.util.ResponseUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -55,7 +55,7 @@ public class AddressclassificationResource {
     public ResponseEntity<AddressclassificationDTO> createAddressclassification(@Valid @RequestBody AddressclassificationDTO addressclassificationDTO) throws URISyntaxException {
         log.debug("REST request to save Addressclassification : {}", addressclassificationDTO);
         if (addressclassificationDTO.getId() != null) {
-            return ResponseEntity.badRequest().headers(HeaderUtil.createFailureAlert(ENTITY_NAME, "idexists", "A new addressclassification cannot already have an ID")).body(null);
+            throw new BadRequestAlertException("A new addressclassification cannot already have an ID", ENTITY_NAME, "idexists");
         }
         AddressclassificationDTO result = addressclassificationService.save(addressclassificationDTO);
         return ResponseEntity.created(new URI("/api/addressclassifications/" + result.getId()))
@@ -93,7 +93,7 @@ public class AddressclassificationResource {
      */
     @GetMapping("/addressclassifications")
     @Timed
-    public ResponseEntity<List<AddressclassificationDTO>> getAllAddressclassifications(@ApiParam Pageable pageable) {
+    public ResponseEntity<List<AddressclassificationDTO>> getAllAddressclassifications(Pageable pageable) {
         log.debug("REST request to get a page of Addressclassifications");
         Page<AddressclassificationDTO> page = addressclassificationService.findAll(pageable);
         HttpHeaders headers = PaginationUtil.generatePaginationHttpHeaders(page, "/api/addressclassifications");
@@ -110,8 +110,8 @@ public class AddressclassificationResource {
     @Timed
     public ResponseEntity<AddressclassificationDTO> getAddressclassification(@PathVariable Long id) {
         log.debug("REST request to get Addressclassification : {}", id);
-        AddressclassificationDTO addressclassificationDTO = addressclassificationService.findOne(id);
-        return ResponseUtil.wrapOrNotFound(Optional.ofNullable(addressclassificationDTO));
+        Optional<AddressclassificationDTO> addressclassificationDTO = addressclassificationService.findOne(id);
+        return ResponseUtil.wrapOrNotFound(addressclassificationDTO);
     }
 
     /**
@@ -138,7 +138,7 @@ public class AddressclassificationResource {
      */
     @GetMapping("/_search/addressclassifications")
     @Timed
-    public ResponseEntity<List<AddressclassificationDTO>> searchAddressclassifications(@RequestParam String query, @ApiParam Pageable pageable) {
+    public ResponseEntity<List<AddressclassificationDTO>> searchAddressclassifications(@RequestParam String query, Pageable pageable) {
         log.debug("REST request to search for a page of Addressclassifications for query {}", query);
         Page<AddressclassificationDTO> page = addressclassificationService.search(query, pageable);
         HttpHeaders headers = PaginationUtil.generateSearchPaginationHttpHeaders(query, page, "/api/_search/addressclassifications");

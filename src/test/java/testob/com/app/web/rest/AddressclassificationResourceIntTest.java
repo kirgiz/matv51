@@ -13,9 +13,12 @@ import testob.com.app.web.rest.errors.ExceptionTranslator;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.web.PageableHandlerMethodArgumentResolver;
 import org.springframework.http.MediaType;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
@@ -25,10 +28,15 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.persistence.EntityManager;
+import java.util.Collections;
 import java.util.List;
+import java.util.ArrayList;
 
+import static testob.com.app.web.rest.TestUtil.createFormattingConversionService;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.hamcrest.Matchers.hasItem;
+import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -53,14 +61,22 @@ public class AddressclassificationResourceIntTest {
     @Autowired
     private AddressclassificationRepository addressclassificationRepository;
 
+
+
     @Autowired
     private AddressclassificationMapper addressclassificationMapper;
+    
 
     @Autowired
     private AddressclassificationService addressclassificationService;
 
+    /**
+     * This repository is mocked in the testob.com.app.repository.search test package.
+     *
+     * @see testob.com.app.repository.search.AddressclassificationSearchRepositoryMockConfiguration
+     */
     @Autowired
-    private AddressclassificationSearchRepository addressclassificationSearchRepository;
+    private AddressclassificationSearchRepository mockAddressclassificationSearchRepository;
 
     @Autowired
     private MappingJackson2HttpMessageConverter jacksonMessageConverter;
@@ -85,6 +101,7 @@ public class AddressclassificationResourceIntTest {
         this.restAddressclassificationMockMvc = MockMvcBuilders.standaloneSetup(addressclassificationResource)
             .setCustomArgumentResolvers(pageableArgumentResolver)
             .setControllerAdvice(exceptionTranslator)
+            .setConversionService(createFormattingConversionService())
             .setMessageConverters(jacksonMessageConverter).build();
     }
 
@@ -104,7 +121,6 @@ public class AddressclassificationResourceIntTest {
 
     @Before
     public void initTest() {
-        addressclassificationSearchRepository.deleteAll();
         addressclassification = createEntity(em);
     }
 
@@ -129,8 +145,7 @@ public class AddressclassificationResourceIntTest {
         assertThat(testAddressclassification.getComments()).isEqualTo(DEFAULT_COMMENTS);
 
         // Validate the Addressclassification in Elasticsearch
-        Addressclassification addressclassificationEs = addressclassificationSearchRepository.findOne(testAddressclassification.getId());
-        assertThat(addressclassificationEs).isEqualToComparingFieldByField(testAddressclassification);
+        verify(mockAddressclassificationSearchRepository, times(1)).save(testAddressclassification);
     }
 
     @Test
@@ -151,6 +166,9 @@ public class AddressclassificationResourceIntTest {
         // Validate the Addressclassification in the database
         List<Addressclassification> addressclassificationList = addressclassificationRepository.findAll();
         assertThat(addressclassificationList).hasSize(databaseSizeBeforeCreate);
+
+        // Validate the Addressclassification in Elasticsearch
+        verify(mockAddressclassificationSearchRepository, times(0)).save(addressclassification);
     }
 
     @Test
@@ -206,6 +224,7 @@ public class AddressclassificationResourceIntTest {
             .andExpect(jsonPath("$.[*].name").value(hasItem(DEFAULT_NAME.toString())))
             .andExpect(jsonPath("$.[*].comments").value(hasItem(DEFAULT_COMMENTS.toString())));
     }
+    
 
     @Test
     @Transactional
@@ -236,11 +255,13 @@ public class AddressclassificationResourceIntTest {
     public void updateAddressclassification() throws Exception {
         // Initialize the database
         addressclassificationRepository.saveAndFlush(addressclassification);
-        addressclassificationSearchRepository.save(addressclassification);
+
         int databaseSizeBeforeUpdate = addressclassificationRepository.findAll().size();
 
         // Update the addressclassification
-        Addressclassification updatedAddressclassification = addressclassificationRepository.findOne(addressclassification.getId());
+        Addressclassification updatedAddressclassification = addressclassificationRepository.findById(addressclassification.getId()).get();
+        // Disconnect from session so that the updates on updatedAddressclassification are not directly saved in db
+        em.detach(updatedAddressclassification);
         updatedAddressclassification
             .code(UPDATED_CODE)
             .name(UPDATED_NAME)
@@ -261,8 +282,7 @@ public class AddressclassificationResourceIntTest {
         assertThat(testAddressclassification.getComments()).isEqualTo(UPDATED_COMMENTS);
 
         // Validate the Addressclassification in Elasticsearch
-        Addressclassification addressclassificationEs = addressclassificationSearchRepository.findOne(testAddressclassification.getId());
-        assertThat(addressclassificationEs).isEqualToComparingFieldByField(testAddressclassification);
+        verify(mockAddressclassificationSearchRepository, times(1)).save(testAddressclassification);
     }
 
     @Test
@@ -282,6 +302,9 @@ public class AddressclassificationResourceIntTest {
         // Validate the Addressclassification in the database
         List<Addressclassification> addressclassificationList = addressclassificationRepository.findAll();
         assertThat(addressclassificationList).hasSize(databaseSizeBeforeUpdate + 1);
+
+        // Validate the Addressclassification in Elasticsearch
+        verify(mockAddressclassificationSearchRepository, times(0)).save(addressclassification);
     }
 
     @Test
@@ -289,7 +312,7 @@ public class AddressclassificationResourceIntTest {
     public void deleteAddressclassification() throws Exception {
         // Initialize the database
         addressclassificationRepository.saveAndFlush(addressclassification);
-        addressclassificationSearchRepository.save(addressclassification);
+
         int databaseSizeBeforeDelete = addressclassificationRepository.findAll().size();
 
         // Get the addressclassification
@@ -297,13 +320,12 @@ public class AddressclassificationResourceIntTest {
             .accept(TestUtil.APPLICATION_JSON_UTF8))
             .andExpect(status().isOk());
 
-        // Validate Elasticsearch is empty
-        boolean addressclassificationExistsInEs = addressclassificationSearchRepository.exists(addressclassification.getId());
-        assertThat(addressclassificationExistsInEs).isFalse();
-
         // Validate the database is empty
         List<Addressclassification> addressclassificationList = addressclassificationRepository.findAll();
         assertThat(addressclassificationList).hasSize(databaseSizeBeforeDelete - 1);
+
+        // Validate the Addressclassification in Elasticsearch
+        verify(mockAddressclassificationSearchRepository, times(1)).deleteById(addressclassification.getId());
     }
 
     @Test
@@ -311,8 +333,8 @@ public class AddressclassificationResourceIntTest {
     public void searchAddressclassification() throws Exception {
         // Initialize the database
         addressclassificationRepository.saveAndFlush(addressclassification);
-        addressclassificationSearchRepository.save(addressclassification);
-
+    when(mockAddressclassificationSearchRepository.search(queryStringQuery("id:" + addressclassification.getId()), PageRequest.of(0, 20)))
+        .thenReturn(new PageImpl<>(Collections.singletonList(addressclassification), PageRequest.of(0, 1), 1));
         // Search the addressclassification
         restAddressclassificationMockMvc.perform(get("/api/_search/addressclassifications?query=id:" + addressclassification.getId()))
             .andExpect(status().isOk())

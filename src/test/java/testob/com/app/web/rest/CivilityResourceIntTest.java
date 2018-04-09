@@ -13,6 +13,7 @@ import testob.com.app.web.rest.errors.ExceptionTranslator;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -25,10 +26,15 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.persistence.EntityManager;
+import java.util.Collections;
 import java.util.List;
+import java.util.ArrayList;
 
+import static testob.com.app.web.rest.TestUtil.createFormattingConversionService;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.hamcrest.Matchers.hasItem;
+import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -53,14 +59,22 @@ public class CivilityResourceIntTest {
     @Autowired
     private CivilityRepository civilityRepository;
 
+
+
     @Autowired
     private CivilityMapper civilityMapper;
+    
 
     @Autowired
     private CivilityService civilityService;
 
+    /**
+     * This repository is mocked in the testob.com.app.repository.search test package.
+     *
+     * @see testob.com.app.repository.search.CivilitySearchRepositoryMockConfiguration
+     */
     @Autowired
-    private CivilitySearchRepository civilitySearchRepository;
+    private CivilitySearchRepository mockCivilitySearchRepository;
 
     @Autowired
     private MappingJackson2HttpMessageConverter jacksonMessageConverter;
@@ -85,6 +99,7 @@ public class CivilityResourceIntTest {
         this.restCivilityMockMvc = MockMvcBuilders.standaloneSetup(civilityResource)
             .setCustomArgumentResolvers(pageableArgumentResolver)
             .setControllerAdvice(exceptionTranslator)
+            .setConversionService(createFormattingConversionService())
             .setMessageConverters(jacksonMessageConverter).build();
     }
 
@@ -104,7 +119,6 @@ public class CivilityResourceIntTest {
 
     @Before
     public void initTest() {
-        civilitySearchRepository.deleteAll();
         civility = createEntity(em);
     }
 
@@ -129,8 +143,7 @@ public class CivilityResourceIntTest {
         assertThat(testCivility.getComments()).isEqualTo(DEFAULT_COMMENTS);
 
         // Validate the Civility in Elasticsearch
-        Civility civilityEs = civilitySearchRepository.findOne(testCivility.getId());
-        assertThat(civilityEs).isEqualToComparingFieldByField(testCivility);
+        verify(mockCivilitySearchRepository, times(1)).save(testCivility);
     }
 
     @Test
@@ -151,6 +164,9 @@ public class CivilityResourceIntTest {
         // Validate the Civility in the database
         List<Civility> civilityList = civilityRepository.findAll();
         assertThat(civilityList).hasSize(databaseSizeBeforeCreate);
+
+        // Validate the Civility in Elasticsearch
+        verify(mockCivilitySearchRepository, times(0)).save(civility);
     }
 
     @Test
@@ -206,6 +222,7 @@ public class CivilityResourceIntTest {
             .andExpect(jsonPath("$.[*].name").value(hasItem(DEFAULT_NAME.toString())))
             .andExpect(jsonPath("$.[*].comments").value(hasItem(DEFAULT_COMMENTS.toString())));
     }
+    
 
     @Test
     @Transactional
@@ -236,11 +253,13 @@ public class CivilityResourceIntTest {
     public void updateCivility() throws Exception {
         // Initialize the database
         civilityRepository.saveAndFlush(civility);
-        civilitySearchRepository.save(civility);
+
         int databaseSizeBeforeUpdate = civilityRepository.findAll().size();
 
         // Update the civility
-        Civility updatedCivility = civilityRepository.findOne(civility.getId());
+        Civility updatedCivility = civilityRepository.findById(civility.getId()).get();
+        // Disconnect from session so that the updates on updatedCivility are not directly saved in db
+        em.detach(updatedCivility);
         updatedCivility
             .code(UPDATED_CODE)
             .name(UPDATED_NAME)
@@ -261,8 +280,7 @@ public class CivilityResourceIntTest {
         assertThat(testCivility.getComments()).isEqualTo(UPDATED_COMMENTS);
 
         // Validate the Civility in Elasticsearch
-        Civility civilityEs = civilitySearchRepository.findOne(testCivility.getId());
-        assertThat(civilityEs).isEqualToComparingFieldByField(testCivility);
+        verify(mockCivilitySearchRepository, times(1)).save(testCivility);
     }
 
     @Test
@@ -282,6 +300,9 @@ public class CivilityResourceIntTest {
         // Validate the Civility in the database
         List<Civility> civilityList = civilityRepository.findAll();
         assertThat(civilityList).hasSize(databaseSizeBeforeUpdate + 1);
+
+        // Validate the Civility in Elasticsearch
+        verify(mockCivilitySearchRepository, times(0)).save(civility);
     }
 
     @Test
@@ -289,7 +310,7 @@ public class CivilityResourceIntTest {
     public void deleteCivility() throws Exception {
         // Initialize the database
         civilityRepository.saveAndFlush(civility);
-        civilitySearchRepository.save(civility);
+
         int databaseSizeBeforeDelete = civilityRepository.findAll().size();
 
         // Get the civility
@@ -297,13 +318,12 @@ public class CivilityResourceIntTest {
             .accept(TestUtil.APPLICATION_JSON_UTF8))
             .andExpect(status().isOk());
 
-        // Validate Elasticsearch is empty
-        boolean civilityExistsInEs = civilitySearchRepository.exists(civility.getId());
-        assertThat(civilityExistsInEs).isFalse();
-
         // Validate the database is empty
         List<Civility> civilityList = civilityRepository.findAll();
         assertThat(civilityList).hasSize(databaseSizeBeforeDelete - 1);
+
+        // Validate the Civility in Elasticsearch
+        verify(mockCivilitySearchRepository, times(1)).deleteById(civility.getId());
     }
 
     @Test
@@ -311,8 +331,8 @@ public class CivilityResourceIntTest {
     public void searchCivility() throws Exception {
         // Initialize the database
         civilityRepository.saveAndFlush(civility);
-        civilitySearchRepository.save(civility);
-
+    when(mockCivilitySearchRepository.search(queryStringQuery("id:" + civility.getId())))
+        .thenReturn(Collections.singletonList(civility));
         // Search the civility
         restCivilityMockMvc.perform(get("/api/_search/civilities?query=id:" + civility.getId()))
             .andExpect(status().isOk())

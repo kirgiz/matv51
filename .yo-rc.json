@@ -4,7 +4,7 @@
       "packageName": "testob.com.app",
       "nativeLanguage": "fr"
     },
-    "jhipsterVersion": "4.9.0",
+    "jhipsterVersion": "5.0.0-beta.0",
     "baseName": "matv51",
     "packageName": "testob.com.app",
     "packageFolder": "testob/com/app",
@@ -42,6 +42,9 @@
     "languages": [
       "fr",
       "en"
-    ]
+    ],
+    "reactive": false,
+    "cacheProvider": "ehcache",
+    "enableHibernateCache": true
   }
 }

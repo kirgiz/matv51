@@ -7,9 +7,11 @@ import testob.com.app.service.dto.DashboardDTO;
 import testob.com.app.service.mapper.DashboardMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Optional;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -54,9 +56,9 @@ public class DashboardService {
     }
 
     /**
-     *  Get all the dashboards.
+     * Get all the dashboards.
      *
-     *  @return the list of entities
+     * @return the list of entities
      */
     @Transactional(readOnly = true)
     public List<DashboardDTO> findAll() {
@@ -66,35 +68,36 @@ public class DashboardService {
             .collect(Collectors.toCollection(LinkedList::new));
     }
 
+
     /**
-     *  Get one dashboard by id.
+     * Get one dashboard by id.
      *
-     *  @param id the id of the entity
-     *  @return the entity
+     * @param id the id of the entity
+     * @return the entity
      */
     @Transactional(readOnly = true)
-    public DashboardDTO findOne(Long id) {
+    public Optional<DashboardDTO> findOne(Long id) {
         log.debug("Request to get Dashboard : {}", id);
-        Dashboard dashboard = dashboardRepository.findOne(id);
-        return dashboardMapper.toDto(dashboard);
+        return dashboardRepository.findById(id)
+            .map(dashboardMapper::toDto);
     }
 
     /**
-     *  Delete the  dashboard by id.
+     * Delete the dashboard by id.
      *
-     *  @param id the id of the entity
+     * @param id the id of the entity
      */
     public void delete(Long id) {
         log.debug("Request to delete Dashboard : {}", id);
-        dashboardRepository.delete(id);
-        dashboardSearchRepository.delete(id);
+        dashboardRepository.deleteById(id);
+        dashboardSearchRepository.deleteById(id);
     }
 
     /**
      * Search for the dashboard corresponding to the query.
      *
-     *  @param query the query of the search
-     *  @return the list of entities
+     * @param query the query of the search
+     * @return the list of entities
      */
     @Transactional(readOnly = true)
     public List<DashboardDTO> search(String query) {

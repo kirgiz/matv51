@@ -7,9 +7,11 @@ import testob.com.app.service.dto.CivilityDTO;
 import testob.com.app.service.mapper.CivilityMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Optional;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -54,9 +56,9 @@ public class CivilityService {
     }
 
     /**
-     *  Get all the civilities.
+     * Get all the civilities.
      *
-     *  @return the list of entities
+     * @return the list of entities
      */
     @Transactional(readOnly = true)
     public List<CivilityDTO> findAll() {
@@ -66,35 +68,36 @@ public class CivilityService {
             .collect(Collectors.toCollection(LinkedList::new));
     }
 
+
     /**
-     *  Get one civility by id.
+     * Get one civility by id.
      *
-     *  @param id the id of the entity
-     *  @return the entity
+     * @param id the id of the entity
+     * @return the entity
      */
     @Transactional(readOnly = true)
-    public CivilityDTO findOne(Long id) {
+    public Optional<CivilityDTO> findOne(Long id) {
         log.debug("Request to get Civility : {}", id);
-        Civility civility = civilityRepository.findOne(id);
-        return civilityMapper.toDto(civility);
+        return civilityRepository.findById(id)
+            .map(civilityMapper::toDto);
     }
 
     /**
-     *  Delete the  civility by id.
+     * Delete the civility by id.
      *
-     *  @param id the id of the entity
+     * @param id the id of the entity
      */
     public void delete(Long id) {
         log.debug("Request to delete Civility : {}", id);
-        civilityRepository.delete(id);
-        civilitySearchRepository.delete(id);
+        civilityRepository.deleteById(id);
+        civilitySearchRepository.deleteById(id);
     }
 
     /**
      * Search for the civility corresponding to the query.
      *
-     *  @param query the query of the search
-     *  @return the list of entities
+     * @param query the query of the search
+     * @return the list of entities
      */
     @Transactional(readOnly = true)
     public List<CivilityDTO> search(String query) {

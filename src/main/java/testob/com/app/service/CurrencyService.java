@@ -7,10 +7,13 @@ import testob.com.app.service.dto.CurrencyDTO;
 import testob.com.app.service.mapper.CurrencyMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Optional;
 
 
 import static org.elasticsearch.index.query.QueryBuilders.*;
@@ -52,10 +55,10 @@ public class CurrencyService {
     }
 
     /**
-     *  Get all the currencies.
+     * Get all the currencies.
      *
-     *  @param pageable the pagination information
-     *  @return the list of entities
+     * @param pageable the pagination information
+     * @return the list of entities
      */
     @Transactional(readOnly = true)
     public Page<CurrencyDTO> findAll(Pageable pageable) {
@@ -64,41 +67,42 @@ public class CurrencyService {
             .map(currencyMapper::toDto);
     }
 
+
     /**
-     *  Get one currency by id.
+     * Get one currency by id.
      *
-     *  @param id the id of the entity
-     *  @return the entity
+     * @param id the id of the entity
+     * @return the entity
      */
     @Transactional(readOnly = true)
-    public CurrencyDTO findOne(Long id) {
+    public Optional<CurrencyDTO> findOne(Long id) {
         log.debug("Request to get Currency : {}", id);
-        Currency currency = currencyRepository.findOne(id);
-        return currencyMapper.toDto(currency);
+        return currencyRepository.findById(id)
+            .map(currencyMapper::toDto);
     }
 
     /**
-     *  Delete the  currency by id.
+     * Delete the currency by id.
      *
-     *  @param id the id of the entity
+     * @param id the id of the entity
      */
     public void delete(Long id) {
         log.debug("Request to delete Currency : {}", id);
-        currencyRepository.delete(id);
-        currencySearchRepository.delete(id);
+        currencyRepository.deleteById(id);
+        currencySearchRepository.deleteById(id);
     }
 
     /**
      * Search for the currency corresponding to the query.
      *
-     *  @param query the query of the search
-     *  @param pageable the pagination information
-     *  @return the list of entities
+     * @param query the query of the search
+     * @param pageable the pagination information
+     * @return the list of entities
      */
     @Transactional(readOnly = true)
     public Page<CurrencyDTO> search(String query, Pageable pageable) {
         log.debug("Request to search for a page of Currencies for query {}", query);
-        Page<Currency> result = currencySearchRepository.search(queryStringQuery(query), pageable);
-        return result.map(currencyMapper::toDto);
+        return currencySearchRepository.search(queryStringQuery(query), pageable)
+            .map(currencyMapper::toDto);
     }
 }

@@ -1,21 +1,36 @@
-const path = require('path');
 const webpack = require('webpack');
+const path = require('path');
 const LoaderOptionsPlugin = require('webpack/lib/LoaderOptionsPlugin');
 
 const utils = require('./utils.js');
 
 module.exports = (WATCH) => ({
     resolve: {
-        extensions: ['.ts', '.js']
+        extensions: ['.ts', '.js'],
+        alias: {
+            app: utils.root('src/main/webapp/app/')
+        }
     },
     module: {
         rules: [
             {
-                test: /\.ts$/, enforce: 'pre', loader: 'tslint-loader', exclude: /node_modules/
+                test: /\.ts$/,
+                enforce: 'pre',
+                loader: 'tslint-loader',
+                exclude: /node_modules/
             },
             {
                 test: /\.ts$/,
-                loaders: ['awesome-typescript-loader', 'angular2-template-loader?keepUrl=true'],
+                use: [
+                    { loader: 'cache-loader' },
+                    { loader: 'ts-loader' },
+                    {
+                        loader: 'angular2-template-loader',
+                        options: {
+                            keepUrl: true
+                        }
+                    }
+                ],
                 exclude: /node_modules/
             },
             {
@@ -32,17 +47,18 @@ module.exports = (WATCH) => ({
                 loaders: ['to-string-loader', 'css-loader', 'sass-loader']
             },
             {
-                test: /\.(jpe?g|png|gif|svg|woff2?|ttf|eot)$/i,
-                loaders: ['file-loader?hash=sha512&digest=hex&name=[hash].[ext]']
-            },
-            {
                 test: /src[/|\\]main[/|\\]webapp[/|\\].+\.ts$/,
                 enforce: 'post',
-                exclude: /(test|node_modules)/,
+                exclude: /node_modules/,
                 loader: 'sourcemap-istanbul-instrumenter-loader?force-sourcemap=true'
             }]
     },
     plugins: [
+        new webpack.DefinePlugin({
+            'process.env': {
+                SERVER_API_URL: `''`
+            }
+        }),
         new webpack.SourceMapDevToolPlugin({
             filename: null, // if no value is provided the sourcemap is inlined
             test: /\.(ts|js)($|\?)/i // process .js and .ts files only
@@ -60,5 +76,6 @@ module.exports = (WATCH) => ({
                 }
             }
         })
-    ]
+    ],
+    mode: 'development'
 });

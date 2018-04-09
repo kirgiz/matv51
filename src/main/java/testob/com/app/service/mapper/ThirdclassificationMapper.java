@@ -9,10 +9,12 @@ import org.mapstruct.*;
  * Mapper for the entity Thirdclassification and its DTO ThirdclassificationDTO.
  */
 @Mapper(componentModel = "spring", uses = {})
-public interface ThirdclassificationMapper extends EntityMapper <ThirdclassificationDTO, Thirdclassification> {
-    
+public interface ThirdclassificationMapper extends EntityMapper<ThirdclassificationDTO, Thirdclassification> {
+
+
     @Mapping(target = "thirdCategories", ignore = true)
-    Thirdclassification toEntity(ThirdclassificationDTO thirdclassificationDTO); 
+    Thirdclassification toEntity(ThirdclassificationDTO thirdclassificationDTO);
+
     default Thirdclassification fromId(Long id) {
         if (id == null) {
             return null;

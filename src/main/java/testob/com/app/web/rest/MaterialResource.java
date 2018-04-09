@@ -2,10 +2,10 @@ package testob.com.app.web.rest;
 
 import com.codahale.metrics.annotation.Timed;
 import testob.com.app.service.MaterialService;
+import testob.com.app.web.rest.errors.BadRequestAlertException;
 import testob.com.app.web.rest.util.HeaderUtil;
 import testob.com.app.web.rest.util.PaginationUtil;
 import testob.com.app.service.dto.MaterialDTO;
-import io.swagger.annotations.ApiParam;
 import io.github.jhipster.web.util.ResponseUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -55,7 +55,7 @@ public class MaterialResource {
     public ResponseEntity<MaterialDTO> createMaterial(@Valid @RequestBody MaterialDTO materialDTO) throws URISyntaxException {
         log.debug("REST request to save Material : {}", materialDTO);
         if (materialDTO.getId() != null) {
-            return ResponseEntity.badRequest().headers(HeaderUtil.createFailureAlert(ENTITY_NAME, "idexists", "A new material cannot already have an ID")).body(null);
+            throw new BadRequestAlertException("A new material cannot already have an ID", ENTITY_NAME, "idexists");
         }
         MaterialDTO result = materialService.save(materialDTO);
         return ResponseEntity.created(new URI("/api/materials/" + result.getId()))
@@ -93,7 +93,7 @@ public class MaterialResource {
      */
     @GetMapping("/materials")
     @Timed
-    public ResponseEntity<List<MaterialDTO>> getAllMaterials(@ApiParam Pageable pageable) {
+    public ResponseEntity<List<MaterialDTO>> getAllMaterials(Pageable pageable) {
         log.debug("REST request to get a page of Materials");
         Page<MaterialDTO> page = materialService.findAll(pageable);
         HttpHeaders headers = PaginationUtil.generatePaginationHttpHeaders(page, "/api/materials");
@@ -110,8 +110,8 @@ public class MaterialResource {
     @Timed
     public ResponseEntity<MaterialDTO> getMaterial(@PathVariable Long id) {
         log.debug("REST request to get Material : {}", id);
-        MaterialDTO materialDTO = materialService.findOne(id);
-        return ResponseUtil.wrapOrNotFound(Optional.ofNullable(materialDTO));
+        Optional<MaterialDTO> materialDTO = materialService.findOne(id);
+        return ResponseUtil.wrapOrNotFound(materialDTO);
     }
 
     /**
@@ -138,7 +138,7 @@ public class MaterialResource {
      */
     @GetMapping("/_search/materials")
     @Timed
-    public ResponseEntity<List<MaterialDTO>> searchMaterials(@RequestParam String query, @ApiParam Pageable pageable) {
+    public ResponseEntity<List<MaterialDTO>> searchMaterials(@RequestParam String query, Pageable pageable) {
         log.debug("REST request to search for a page of Materials for query {}", query);
         Page<MaterialDTO> page = materialService.search(query, pageable);
         HttpHeaders headers = PaginationUtil.generateSearchPaginationHttpHeaders(query, page, "/api/_search/materials");

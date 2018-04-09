@@ -15,6 +15,7 @@ import testob.com.app.web.rest.errors.ExceptionTranslator;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -29,10 +30,15 @@ import org.springframework.transaction.annotation.Transactional;
 import javax.persistence.EntityManager;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.Collections;
 import java.util.List;
+import java.util.ArrayList;
 
+import static testob.com.app.web.rest.TestUtil.createFormattingConversionService;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.hamcrest.Matchers.hasItem;
+import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -57,14 +63,22 @@ public class DashboardResourceIntTest {
     @Autowired
     private DashboardRepository dashboardRepository;
 
+
+
     @Autowired
     private DashboardMapper dashboardMapper;
+    
 
     @Autowired
     private DashboardService dashboardService;
 
+    /**
+     * This repository is mocked in the testob.com.app.repository.search test package.
+     *
+     * @see testob.com.app.repository.search.DashboardSearchRepositoryMockConfiguration
+     */
     @Autowired
-    private DashboardSearchRepository dashboardSearchRepository;
+    private DashboardSearchRepository mockDashboardSearchRepository;
 
     @Autowired
     private MappingJackson2HttpMessageConverter jacksonMessageConverter;
@@ -89,6 +103,7 @@ public class DashboardResourceIntTest {
         this.restDashboardMockMvc = MockMvcBuilders.standaloneSetup(dashboardResource)
             .setCustomArgumentResolvers(pageableArgumentResolver)
             .setControllerAdvice(exceptionTranslator)
+            .setConversionService(createFormattingConversionService())
             .setMessageConverters(jacksonMessageConverter).build();
     }
 
@@ -118,7 +133,6 @@ public class DashboardResourceIntTest {
 
     @Before
     public void initTest() {
-        dashboardSearchRepository.deleteAll();
         dashboard = createEntity(em);
     }
 
@@ -143,8 +157,7 @@ public class DashboardResourceIntTest {
         assertThat(testDashboard.getNumberOfItems()).isEqualTo(DEFAULT_NUMBER_OF_ITEMS);
 
         // Validate the Dashboard in Elasticsearch
-        Dashboard dashboardEs = dashboardSearchRepository.findOne(testDashboard.getId());
-        assertThat(dashboardEs).isEqualToComparingFieldByField(testDashboard);
+        verify(mockDashboardSearchRepository, times(1)).save(testDashboard);
     }
 
     @Test
@@ -165,6 +178,9 @@ public class DashboardResourceIntTest {
         // Validate the Dashboard in the database
         List<Dashboard> dashboardList = dashboardRepository.findAll();
         assertThat(dashboardList).hasSize(databaseSizeBeforeCreate);
+
+        // Validate the Dashboard in Elasticsearch
+        verify(mockDashboardSearchRepository, times(0)).save(dashboard);
     }
 
     @Test
@@ -201,6 +217,7 @@ public class DashboardResourceIntTest {
             .andExpect(jsonPath("$.[*].profitAndLoss").value(hasItem(DEFAULT_PROFIT_AND_LOSS.doubleValue())))
             .andExpect(jsonPath("$.[*].numberOfItems").value(hasItem(DEFAULT_NUMBER_OF_ITEMS.intValue())));
     }
+    
 
     @Test
     @Transactional
@@ -231,11 +248,13 @@ public class DashboardResourceIntTest {
     public void updateDashboard() throws Exception {
         // Initialize the database
         dashboardRepository.saveAndFlush(dashboard);
-        dashboardSearchRepository.save(dashboard);
+
         int databaseSizeBeforeUpdate = dashboardRepository.findAll().size();
 
         // Update the dashboard
-        Dashboard updatedDashboard = dashboardRepository.findOne(dashboard.getId());
+        Dashboard updatedDashboard = dashboardRepository.findById(dashboard.getId()).get();
+        // Disconnect from session so that the updates on updatedDashboard are not directly saved in db
+        em.detach(updatedDashboard);
         updatedDashboard
             .transferDate(UPDATED_TRANSFER_DATE)
             .profitAndLoss(UPDATED_PROFIT_AND_LOSS)
@@ -256,8 +275,7 @@ public class DashboardResourceIntTest {
         assertThat(testDashboard.getNumberOfItems()).isEqualTo(UPDATED_NUMBER_OF_ITEMS);
 
         // Validate the Dashboard in Elasticsearch
-        Dashboard dashboardEs = dashboardSearchRepository.findOne(testDashboard.getId());
-        assertThat(dashboardEs).isEqualToComparingFieldByField(testDashboard);
+        verify(mockDashboardSearchRepository, times(1)).save(testDashboard);
     }
 
     @Test
@@ -277,6 +295,9 @@ public class DashboardResourceIntTest {
         // Validate the Dashboard in the database
         List<Dashboard> dashboardList = dashboardRepository.findAll();
         assertThat(dashboardList).hasSize(databaseSizeBeforeUpdate + 1);
+
+        // Validate the Dashboard in Elasticsearch
+        verify(mockDashboardSearchRepository, times(0)).save(dashboard);
     }
 
     @Test
@@ -284,7 +305,7 @@ public class DashboardResourceIntTest {
     public void deleteDashboard() throws Exception {
         // Initialize the database
         dashboardRepository.saveAndFlush(dashboard);
-        dashboardSearchRepository.save(dashboard);
+
         int databaseSizeBeforeDelete = dashboardRepository.findAll().size();
 
         // Get the dashboard
@@ -292,13 +313,12 @@ public class DashboardResourceIntTest {
             .accept(TestUtil.APPLICATION_JSON_UTF8))
             .andExpect(status().isOk());
 
-        // Validate Elasticsearch is empty
-        boolean dashboardExistsInEs = dashboardSearchRepository.exists(dashboard.getId());
-        assertThat(dashboardExistsInEs).isFalse();
-
         // Validate the database is empty
         List<Dashboard> dashboardList = dashboardRepository.findAll();
         assertThat(dashboardList).hasSize(databaseSizeBeforeDelete - 1);
+
+        // Validate the Dashboard in Elasticsearch
+        verify(mockDashboardSearchRepository, times(1)).deleteById(dashboard.getId());
     }
 
     @Test
@@ -306,8 +326,8 @@ public class DashboardResourceIntTest {
     public void searchDashboard() throws Exception {
         // Initialize the database
         dashboardRepository.saveAndFlush(dashboard);
-        dashboardSearchRepository.save(dashboard);
-
+    when(mockDashboardSearchRepository.search(queryStringQuery("id:" + dashboard.getId())))
+        .thenReturn(Collections.singletonList(dashboard));
         // Search the dashboard
         restDashboardMockMvc.perform(get("/api/_search/dashboards?query=id:" + dashboard.getId()))
             .andExpect(status().isOk())

@@ -13,9 +13,12 @@ import testob.com.app.web.rest.errors.ExceptionTranslator;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.web.PageableHandlerMethodArgumentResolver;
 import org.springframework.http.MediaType;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
@@ -25,10 +28,15 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.persistence.EntityManager;
+import java.util.Collections;
 import java.util.List;
+import java.util.ArrayList;
 
+import static testob.com.app.web.rest.TestUtil.createFormattingConversionService;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.hamcrest.Matchers.hasItem;
+import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -50,14 +58,22 @@ public class CurrencyResourceIntTest {
     @Autowired
     private CurrencyRepository currencyRepository;
 
+
+
     @Autowired
     private CurrencyMapper currencyMapper;
+    
 
     @Autowired
     private CurrencyService currencyService;
 
+    /**
+     * This repository is mocked in the testob.com.app.repository.search test package.
+     *
+     * @see testob.com.app.repository.search.CurrencySearchRepositoryMockConfiguration
+     */
     @Autowired
-    private CurrencySearchRepository currencySearchRepository;
+    private CurrencySearchRepository mockCurrencySearchRepository;
 
     @Autowired
     private MappingJackson2HttpMessageConverter jacksonMessageConverter;
@@ -82,6 +98,7 @@ public class CurrencyResourceIntTest {
         this.restCurrencyMockMvc = MockMvcBuilders.standaloneSetup(currencyResource)
             .setCustomArgumentResolvers(pageableArgumentResolver)
             .setControllerAdvice(exceptionTranslator)
+            .setConversionService(createFormattingConversionService())
             .setMessageConverters(jacksonMessageConverter).build();
     }
 
@@ -100,7 +117,6 @@ public class CurrencyResourceIntTest {
 
     @Before
     public void initTest() {
-        currencySearchRepository.deleteAll();
         currency = createEntity(em);
     }
 
@@ -124,8 +140,7 @@ public class CurrencyResourceIntTest {
         assertThat(testCurrency.getName()).isEqualTo(DEFAULT_NAME);
 
         // Validate the Currency in Elasticsearch
-        Currency currencyEs = currencySearchRepository.findOne(testCurrency.getId());
-        assertThat(currencyEs).isEqualToComparingFieldByField(testCurrency);
+        verify(mockCurrencySearchRepository, times(1)).save(testCurrency);
     }
 
     @Test
@@ -146,6 +161,9 @@ public class CurrencyResourceIntTest {
         // Validate the Currency in the database
         List<Currency> currencyList = currencyRepository.findAll();
         assertThat(currencyList).hasSize(databaseSizeBeforeCreate);
+
+        // Validate the Currency in Elasticsearch
+        verify(mockCurrencySearchRepository, times(0)).save(currency);
     }
 
     @Test
@@ -200,6 +218,7 @@ public class CurrencyResourceIntTest {
             .andExpect(jsonPath("$.[*].isoCode").value(hasItem(DEFAULT_ISO_CODE.toString())))
             .andExpect(jsonPath("$.[*].name").value(hasItem(DEFAULT_NAME.toString())));
     }
+    
 
     @Test
     @Transactional
@@ -229,11 +248,13 @@ public class CurrencyResourceIntTest {
     public void updateCurrency() throws Exception {
         // Initialize the database
         currencyRepository.saveAndFlush(currency);
-        currencySearchRepository.save(currency);
+
         int databaseSizeBeforeUpdate = currencyRepository.findAll().size();
 
         // Update the currency
-        Currency updatedCurrency = currencyRepository.findOne(currency.getId());
+        Currency updatedCurrency = currencyRepository.findById(currency.getId()).get();
+        // Disconnect from session so that the updates on updatedCurrency are not directly saved in db
+        em.detach(updatedCurrency);
         updatedCurrency
             .isoCode(UPDATED_ISO_CODE)
             .name(UPDATED_NAME);
@@ -252,8 +273,7 @@ public class CurrencyResourceIntTest {
         assertThat(testCurrency.getName()).isEqualTo(UPDATED_NAME);
 
         // Validate the Currency in Elasticsearch
-        Currency currencyEs = currencySearchRepository.findOne(testCurrency.getId());
-        assertThat(currencyEs).isEqualToComparingFieldByField(testCurrency);
+        verify(mockCurrencySearchRepository, times(1)).save(testCurrency);
     }
 
     @Test
@@ -273,6 +293,9 @@ public class CurrencyResourceIntTest {
         // Validate the Currency in the database
         List<Currency> currencyList = currencyRepository.findAll();
         assertThat(currencyList).hasSize(databaseSizeBeforeUpdate + 1);
+
+        // Validate the Currency in Elasticsearch
+        verify(mockCurrencySearchRepository, times(0)).save(currency);
     }
 
     @Test
@@ -280,7 +303,7 @@ public class CurrencyResourceIntTest {
     public void deleteCurrency() throws Exception {
         // Initialize the database
         currencyRepository.saveAndFlush(currency);
-        currencySearchRepository.save(currency);
+
         int databaseSizeBeforeDelete = currencyRepository.findAll().size();
 
         // Get the currency
@@ -288,13 +311,12 @@ public class CurrencyResourceIntTest {
             .accept(TestUtil.APPLICATION_JSON_UTF8))
             .andExpect(status().isOk());
 
-        // Validate Elasticsearch is empty
-        boolean currencyExistsInEs = currencySearchRepository.exists(currency.getId());
-        assertThat(currencyExistsInEs).isFalse();
-
         // Validate the database is empty
         List<Currency> currencyList = currencyRepository.findAll();
         assertThat(currencyList).hasSize(databaseSizeBeforeDelete - 1);
+
+        // Validate the Currency in Elasticsearch
+        verify(mockCurrencySearchRepository, times(1)).deleteById(currency.getId());
     }
 
     @Test
@@ -302,8 +324,8 @@ public class CurrencyResourceIntTest {
     public void searchCurrency() throws Exception {
         // Initialize the database
         currencyRepository.saveAndFlush(currency);
-        currencySearchRepository.save(currency);
-
+    when(mockCurrencySearchRepository.search(queryStringQuery("id:" + currency.getId()), PageRequest.of(0, 20)))
+        .thenReturn(new PageImpl<>(Collections.singletonList(currency), PageRequest.of(0, 1), 1));
         // Search the currency
         restCurrencyMockMvc.perform(get("/api/_search/currencies?query=id:" + currency.getId()))
             .andExpect(status().isOk())

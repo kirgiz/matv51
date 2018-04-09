@@ -7,10 +7,13 @@ import testob.com.app.service.dto.LotDTO;
 import testob.com.app.service.mapper.LotMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Optional;
 
 
 import static org.elasticsearch.index.query.QueryBuilders.*;
@@ -52,10 +55,10 @@ public class LotService {
     }
 
     /**
-     *  Get all the lots.
+     * Get all the lots.
      *
-     *  @param pageable the pagination information
-     *  @return the list of entities
+     * @param pageable the pagination information
+     * @return the list of entities
      */
     @Transactional(readOnly = true)
     public Page<LotDTO> findAll(Pageable pageable) {
@@ -64,41 +67,42 @@ public class LotService {
             .map(lotMapper::toDto);
     }
 
+
     /**
-     *  Get one lot by id.
+     * Get one lot by id.
      *
-     *  @param id the id of the entity
-     *  @return the entity
+     * @param id the id of the entity
+     * @return the entity
      */
     @Transactional(readOnly = true)
-    public LotDTO findOne(Long id) {
+    public Optional<LotDTO> findOne(Long id) {
         log.debug("Request to get Lot : {}", id);
-        Lot lot = lotRepository.findOne(id);
-        return lotMapper.toDto(lot);
+        return lotRepository.findById(id)
+            .map(lotMapper::toDto);
     }
 
     /**
-     *  Delete the  lot by id.
+     * Delete the lot by id.
      *
-     *  @param id the id of the entity
+     * @param id the id of the entity
      */
     public void delete(Long id) {
         log.debug("Request to delete Lot : {}", id);
-        lotRepository.delete(id);
-        lotSearchRepository.delete(id);
+        lotRepository.deleteById(id);
+        lotSearchRepository.deleteById(id);
     }
 
     /**
      * Search for the lot corresponding to the query.
      *
-     *  @param query the query of the search
-     *  @param pageable the pagination information
-     *  @return the list of entities
+     * @param query the query of the search
+     * @param pageable the pagination information
+     * @return the list of entities
      */
     @Transactional(readOnly = true)
     public Page<LotDTO> search(String query, Pageable pageable) {
         log.debug("Request to search for a page of Lots for query {}", query);
-        Page<Lot> result = lotSearchRepository.search(queryStringQuery(query), pageable);
-        return result.map(lotMapper::toDto);
+        return lotSearchRepository.search(queryStringQuery(query), pageable)
+            .map(lotMapper::toDto);
     }
 }

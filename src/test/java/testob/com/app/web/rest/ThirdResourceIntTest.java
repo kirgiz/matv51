@@ -15,9 +15,12 @@ import testob.com.app.web.rest.errors.ExceptionTranslator;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.web.PageableHandlerMethodArgumentResolver;
 import org.springframework.http.MediaType;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
@@ -27,10 +30,15 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.persistence.EntityManager;
+import java.util.Collections;
 import java.util.List;
+import java.util.ArrayList;
 
+import static testob.com.app.web.rest.TestUtil.createFormattingConversionService;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.hamcrest.Matchers.hasItem;
+import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -55,14 +63,25 @@ public class ThirdResourceIntTest {
     @Autowired
     private ThirdRepository thirdRepository;
 
+    @Mock
+    private ThirdRepository thirdRepositoryMock;
+
     @Autowired
     private ThirdMapper thirdMapper;
+    
+    @Mock
+    private ThirdService thirdServiceMock;
 
     @Autowired
     private ThirdService thirdService;
 
+    /**
+     * This repository is mocked in the testob.com.app.repository.search test package.
+     *
+     * @see testob.com.app.repository.search.ThirdSearchRepositoryMockConfiguration
+     */
     @Autowired
-    private ThirdSearchRepository thirdSearchRepository;
+    private ThirdSearchRepository mockThirdSearchRepository;
 
     @Autowired
     private MappingJackson2HttpMessageConverter jacksonMessageConverter;
@@ -87,6 +106,7 @@ public class ThirdResourceIntTest {
         this.restThirdMockMvc = MockMvcBuilders.standaloneSetup(thirdResource)
             .setCustomArgumentResolvers(pageableArgumentResolver)
             .setControllerAdvice(exceptionTranslator)
+            .setConversionService(createFormattingConversionService())
             .setMessageConverters(jacksonMessageConverter).build();
     }
 
@@ -116,7 +136,6 @@ public class ThirdResourceIntTest {
 
     @Before
     public void initTest() {
-        thirdSearchRepository.deleteAll();
         third = createEntity(em);
     }
 
@@ -141,8 +160,7 @@ public class ThirdResourceIntTest {
         assertThat(testThird.getComments()).isEqualTo(DEFAULT_COMMENTS);
 
         // Validate the Third in Elasticsearch
-        Third thirdEs = thirdSearchRepository.findOne(testThird.getId());
-        assertThat(thirdEs).isEqualToComparingFieldByField(testThird);
+        verify(mockThirdSearchRepository, times(1)).save(testThird);
     }
 
     @Test
@@ -163,6 +181,9 @@ public class ThirdResourceIntTest {
         // Validate the Third in the database
         List<Third> thirdList = thirdRepository.findAll();
         assertThat(thirdList).hasSize(databaseSizeBeforeCreate);
+
+        // Validate the Third in Elasticsearch
+        verify(mockThirdSearchRepository, times(0)).save(third);
     }
 
     @Test
@@ -218,6 +239,37 @@ public class ThirdResourceIntTest {
             .andExpect(jsonPath("$.[*].name").value(hasItem(DEFAULT_NAME.toString())))
             .andExpect(jsonPath("$.[*].comments").value(hasItem(DEFAULT_COMMENTS.toString())));
     }
+    
+    public void getAllThirdsWithEagerRelationshipsIsEnabled() throws Exception {
+        ThirdResource thirdResource = new ThirdResource(thirdServiceMock);
+        when(thirdServiceMock.findAllWithEagerRelationships(any())).thenReturn(new PageImpl(new ArrayList<>()));
+
+        MockMvc restThirdMockMvc = MockMvcBuilders.standaloneSetup(thirdResource)
+            .setCustomArgumentResolvers(pageableArgumentResolver)
+            .setControllerAdvice(exceptionTranslator)
+            .setConversionService(createFormattingConversionService())
+            .setMessageConverters(jacksonMessageConverter).build();
+
+        restThirdMockMvc.perform(get("/api/thirds?eagerload=true"))
+        .andExpect(status().isOk());
+
+        verify(thirdServiceMock, times(1)).findAllWithEagerRelationships(any());
+    }
+
+    public void getAllThirdsWithEagerRelationshipsIsNotEnabled() throws Exception {
+        ThirdResource thirdResource = new ThirdResource(thirdServiceMock);
+            when(thirdServiceMock.findAllWithEagerRelationships(any())).thenReturn(new PageImpl(new ArrayList<>()));
+            MockMvc restThirdMockMvc = MockMvcBuilders.standaloneSetup(thirdResource)
+            .setCustomArgumentResolvers(pageableArgumentResolver)
+            .setControllerAdvice(exceptionTranslator)
+            .setConversionService(createFormattingConversionService())
+            .setMessageConverters(jacksonMessageConverter).build();
+
+        restThirdMockMvc.perform(get("/api/thirds?eagerload=true"))
+        .andExpect(status().isOk());
+
+            verify(thirdServiceMock, times(1)).findAllWithEagerRelationships(any());
+    }
 
     @Test
     @Transactional
@@ -248,11 +300,13 @@ public class ThirdResourceIntTest {
     public void updateThird() throws Exception {
         // Initialize the database
         thirdRepository.saveAndFlush(third);
-        thirdSearchRepository.save(third);
+
         int databaseSizeBeforeUpdate = thirdRepository.findAll().size();
 
         // Update the third
-        Third updatedThird = thirdRepository.findOne(third.getId());
+        Third updatedThird = thirdRepository.findById(third.getId()).get();
+        // Disconnect from session so that the updates on updatedThird are not directly saved in db
+        em.detach(updatedThird);
         updatedThird
             .code(UPDATED_CODE)
             .name(UPDATED_NAME)
@@ -273,8 +327,7 @@ public class ThirdResourceIntTest {
         assertThat(testThird.getComments()).isEqualTo(UPDATED_COMMENTS);
 
         // Validate the Third in Elasticsearch
-        Third thirdEs = thirdSearchRepository.findOne(testThird.getId());
-        assertThat(thirdEs).isEqualToComparingFieldByField(testThird);
+        verify(mockThirdSearchRepository, times(1)).save(testThird);
     }
 
     @Test
@@ -294,6 +347,9 @@ public class ThirdResourceIntTest {
         // Validate the Third in the database
         List<Third> thirdList = thirdRepository.findAll();
         assertThat(thirdList).hasSize(databaseSizeBeforeUpdate + 1);
+
+        // Validate the Third in Elasticsearch
+        verify(mockThirdSearchRepository, times(0)).save(third);
     }
 
     @Test
@@ -301,7 +357,7 @@ public class ThirdResourceIntTest {
     public void deleteThird() throws Exception {
         // Initialize the database
         thirdRepository.saveAndFlush(third);
-        thirdSearchRepository.save(third);
+
         int databaseSizeBeforeDelete = thirdRepository.findAll().size();
 
         // Get the third
@@ -309,13 +365,12 @@ public class ThirdResourceIntTest {
             .accept(TestUtil.APPLICATION_JSON_UTF8))
             .andExpect(status().isOk());
 
-        // Validate Elasticsearch is empty
-        boolean thirdExistsInEs = thirdSearchRepository.exists(third.getId());
-        assertThat(thirdExistsInEs).isFalse();
-
         // Validate the database is empty
         List<Third> thirdList = thirdRepository.findAll();
         assertThat(thirdList).hasSize(databaseSizeBeforeDelete - 1);
+
+        // Validate the Third in Elasticsearch
+        verify(mockThirdSearchRepository, times(1)).deleteById(third.getId());
     }
 
     @Test
@@ -323,8 +378,8 @@ public class ThirdResourceIntTest {
     public void searchThird() throws Exception {
         // Initialize the database
         thirdRepository.saveAndFlush(third);
-        thirdSearchRepository.save(third);
-
+    when(mockThirdSearchRepository.search(queryStringQuery("id:" + third.getId())))
+        .thenReturn(Collections.singletonList(third));
         // Search the third
         restThirdMockMvc.perform(get("/api/_search/thirds?query=id:" + third.getId()))
             .andExpect(status().isOk())

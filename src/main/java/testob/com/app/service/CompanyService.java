@@ -7,10 +7,13 @@ import testob.com.app.service.dto.CompanyDTO;
 import testob.com.app.service.mapper.CompanyMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Optional;
 
 
 import static org.elasticsearch.index.query.QueryBuilders.*;
@@ -52,10 +55,10 @@ public class CompanyService {
     }
 
     /**
-     *  Get all the companies.
+     * Get all the companies.
      *
-     *  @param pageable the pagination information
-     *  @return the list of entities
+     * @param pageable the pagination information
+     * @return the list of entities
      */
     @Transactional(readOnly = true)
     public Page<CompanyDTO> findAll(Pageable pageable) {
@@ -64,41 +67,42 @@ public class CompanyService {
             .map(companyMapper::toDto);
     }
 
+
     /**
-     *  Get one company by id.
+     * Get one company by id.
      *
-     *  @param id the id of the entity
-     *  @return the entity
+     * @param id the id of the entity
+     * @return the entity
      */
     @Transactional(readOnly = true)
-    public CompanyDTO findOne(Long id) {
+    public Optional<CompanyDTO> findOne(Long id) {
         log.debug("Request to get Company : {}", id);
-        Company company = companyRepository.findOne(id);
-        return companyMapper.toDto(company);
+        return companyRepository.findById(id)
+            .map(companyMapper::toDto);
     }
 
     /**
-     *  Delete the  company by id.
+     * Delete the company by id.
      *
-     *  @param id the id of the entity
+     * @param id the id of the entity
      */
     public void delete(Long id) {
         log.debug("Request to delete Company : {}", id);
-        companyRepository.delete(id);
-        companySearchRepository.delete(id);
+        companyRepository.deleteById(id);
+        companySearchRepository.deleteById(id);
     }
 
     /**
      * Search for the company corresponding to the query.
      *
-     *  @param query the query of the search
-     *  @param pageable the pagination information
-     *  @return the list of entities
+     * @param query the query of the search
+     * @param pageable the pagination information
+     * @return the list of entities
      */
     @Transactional(readOnly = true)
     public Page<CompanyDTO> search(String query, Pageable pageable) {
         log.debug("Request to search for a page of Companies for query {}", query);
-        Page<Company> result = companySearchRepository.search(queryStringQuery(query), pageable);
-        return result.map(companyMapper::toDto);
+        return companySearchRepository.search(queryStringQuery(query), pageable)
+            .map(companyMapper::toDto);
     }
 }

@@ -2,10 +2,10 @@ package testob.com.app.web.rest;
 
 import com.codahale.metrics.annotation.Timed;
 import testob.com.app.service.TransferclassificationService;
+import testob.com.app.web.rest.errors.BadRequestAlertException;
 import testob.com.app.web.rest.util.HeaderUtil;
 import testob.com.app.web.rest.util.PaginationUtil;
 import testob.com.app.service.dto.TransferclassificationDTO;
-import io.swagger.annotations.ApiParam;
 import io.github.jhipster.web.util.ResponseUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -55,7 +55,7 @@ public class TransferclassificationResource {
     public ResponseEntity<TransferclassificationDTO> createTransferclassification(@Valid @RequestBody TransferclassificationDTO transferclassificationDTO) throws URISyntaxException {
         log.debug("REST request to save Transferclassification : {}", transferclassificationDTO);
         if (transferclassificationDTO.getId() != null) {
-            return ResponseEntity.badRequest().headers(HeaderUtil.createFailureAlert(ENTITY_NAME, "idexists", "A new transferclassification cannot already have an ID")).body(null);
+            throw new BadRequestAlertException("A new transferclassification cannot already have an ID", ENTITY_NAME, "idexists");
         }
         TransferclassificationDTO result = transferclassificationService.save(transferclassificationDTO);
         return ResponseEntity.created(new URI("/api/transferclassifications/" + result.getId()))
@@ -93,7 +93,7 @@ public class TransferclassificationResource {
      */
     @GetMapping("/transferclassifications")
     @Timed
-    public ResponseEntity<List<TransferclassificationDTO>> getAllTransferclassifications(@ApiParam Pageable pageable) {
+    public ResponseEntity<List<TransferclassificationDTO>> getAllTransferclassifications(Pageable pageable) {
         log.debug("REST request to get a page of Transferclassifications");
         Page<TransferclassificationDTO> page = transferclassificationService.findAll(pageable);
         HttpHeaders headers = PaginationUtil.generatePaginationHttpHeaders(page, "/api/transferclassifications");
@@ -110,8 +110,8 @@ public class TransferclassificationResource {
     @Timed
     public ResponseEntity<TransferclassificationDTO> getTransferclassification(@PathVariable Long id) {
         log.debug("REST request to get Transferclassification : {}", id);
-        TransferclassificationDTO transferclassificationDTO = transferclassificationService.findOne(id);
-        return ResponseUtil.wrapOrNotFound(Optional.ofNullable(transferclassificationDTO));
+        Optional<TransferclassificationDTO> transferclassificationDTO = transferclassificationService.findOne(id);
+        return ResponseUtil.wrapOrNotFound(transferclassificationDTO);
     }
 
     /**
@@ -138,7 +138,7 @@ public class TransferclassificationResource {
      */
     @GetMapping("/_search/transferclassifications")
     @Timed
-    public ResponseEntity<List<TransferclassificationDTO>> searchTransferclassifications(@RequestParam String query, @ApiParam Pageable pageable) {
+    public ResponseEntity<List<TransferclassificationDTO>> searchTransferclassifications(@RequestParam String query, Pageable pageable) {
         log.debug("REST request to search for a page of Transferclassifications for query {}", query);
         Page<TransferclassificationDTO> page = transferclassificationService.search(query, pageable);
         HttpHeaders headers = PaginationUtil.generateSearchPaginationHttpHeaders(query, page, "/api/_search/transferclassifications");

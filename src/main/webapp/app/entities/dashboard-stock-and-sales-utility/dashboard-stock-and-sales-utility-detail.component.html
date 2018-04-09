@@ -1,0 +1,47 @@
+<div class="row justify-content-center">
+    <div class="col-8">
+        <div *ngIf="dashboard">
+            <h2><span jhiTranslate="matv51App.dashboard.detail.title">Dashboard</span> {{dashboard.id}}</h2>
+            <hr>
+            <jhi-alert-error></jhi-alert-error>
+            <dl class="row-md jh-entity-details">
+                <dt><span jhiTranslate="matv51App.dashboard.transferDate">Transfer Date</span></dt>
+                <dd>
+                    <span>{{dashboard.transferDate}}</span>
+                </dd>
+                <dt><span jhiTranslate="matv51App.dashboard.profitAndLoss">Profit And Loss</span></dt>
+                <dd>
+                    <span>{{dashboard.profitAndLoss}}</span>
+                </dd>
+                <dt><span jhiTranslate="matv51App.dashboard.numberOfItems">Number Of Items</span></dt>
+                <dd>
+                    <span>{{dashboard.numberOfItems}}</span>
+                </dd>
+                <dt><span jhiTranslate="matv51App.dashboard.warehouseOutg">Warehouse Outg</span></dt>
+                <dd>
+                    <div *ngIf="dashboard.warehouseOutgId">
+                        <a [routerLink]="['/third-stock-and-sales-utility', dashboard.warehouseOutgId, 'view']">{{dashboard.warehouseOutgName}}</a>
+                    </div>
+                </dd>
+                <dt><span jhiTranslate="matv51App.dashboard.materialTypeDefDashboard">Material Type Def Dashboard</span></dt>
+                <dd>
+                    <div *ngIf="dashboard.materialTypeDefDashboardId">
+                        <a [routerLink]="['/materialclassification-stock-and-sales-utility', dashboard.materialTypeDefDashboardId, 'view']">{{dashboard.materialTypeDefDashboardCode}}</a>
+                    </div>
+                </dd>
+            </dl>
+
+            <button type="submit"
+                    (click)="previousState()"
+                    class="btn btn-info">
+                <span class="fa fa-arrow-left"></span>&nbsp;<span jhiTranslate="entity.action.back"> Back</span>
+            </button>
+
+            <button type="button"
+                    [routerLink]="['/dashboard-stock-and-sales-utility', dashboard.id, 'edit']"
+                    class="btn btn-primary">
+                <span class="fa fa-pencil"></span>&nbsp;<span jhiTranslate="entity.action.edit"> Edit</span>
+            </button>
+        </div>
+    </div>
+</div>

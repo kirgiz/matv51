@@ -1,11 +1,13 @@
 package testob.com.app.domain;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import org.hibernate.annotations.Cache;
 import org.hibernate.annotations.CacheConcurrencyStrategy;
-import org.springframework.data.elasticsearch.annotations.Document;
 
 import javax.persistence.*;
 import javax.validation.constraints.*;
+
+import org.springframework.data.elasticsearch.annotations.Document;
 import java.io.Serializable;
 import java.time.LocalDate;
 import java.util.HashSet;
@@ -52,14 +54,17 @@ public class Materialhistory implements Serializable {
 
     @ManyToOne(optional = false)
     @NotNull
+    @JsonIgnoreProperties("materialhistoryCategories")
     private Transferclassification transferClassif;
 
     @ManyToOne(optional = false)
     @NotNull
+    @JsonIgnoreProperties("materialhistoryfroms")
     private Third warehousefrom;
 
     @ManyToOne(optional = false)
     @NotNull
+    @JsonIgnoreProperties("materialhistorytos")
     private Third warehouseto;
 
     // jhipster-needle-entity-add-field - JHipster will add fields here, do not remove
@@ -212,7 +217,7 @@ public class Materialhistory implements Serializable {
             "id=" + getId() +
             ", code='" + getCode() + "'" +
             ", creationDate='" + getCreationDate() + "'" +
-            ", price='" + getPrice() + "'" +
+            ", price=" + getPrice() +
             ", comments='" + getComments() + "'" +
             "}";
     }

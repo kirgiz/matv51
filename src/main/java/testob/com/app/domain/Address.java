@@ -1,12 +1,14 @@
 package testob.com.app.domain;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import org.hibernate.annotations.Cache;
 import org.hibernate.annotations.CacheConcurrencyStrategy;
-import org.springframework.data.elasticsearch.annotations.Document;
 
 import javax.persistence.*;
 import javax.validation.constraints.*;
+
+import org.springframework.data.elasticsearch.annotations.Document;
 import java.io.Serializable;
 import java.time.LocalDate;
 import java.util.HashSet;
@@ -70,9 +72,11 @@ public class Address implements Serializable {
 
     @ManyToOne(optional = false)
     @NotNull
+    @JsonIgnoreProperties("addressCategories")
     private Addressclassification addressClassif;
 
     @ManyToOne
+    @JsonIgnoreProperties("addressCountries")
     private Country countryAddress;
 
     @ManyToMany(mappedBy = "addressthirds")

@@ -2,6 +2,7 @@ package testob.com.app.web.rest;
 
 import com.codahale.metrics.annotation.Timed;
 import testob.com.app.service.DashboardService;
+import testob.com.app.web.rest.errors.BadRequestAlertException;
 import testob.com.app.web.rest.util.HeaderUtil;
 import testob.com.app.service.dto.DashboardDTO;
 import io.github.jhipster.web.util.ResponseUtil;
@@ -49,7 +50,7 @@ public class DashboardResource {
     public ResponseEntity<DashboardDTO> createDashboard(@Valid @RequestBody DashboardDTO dashboardDTO) throws URISyntaxException {
         log.debug("REST request to save Dashboard : {}", dashboardDTO);
         if (dashboardDTO.getId() != null) {
-            return ResponseEntity.badRequest().headers(HeaderUtil.createFailureAlert(ENTITY_NAME, "idexists", "A new dashboard cannot already have an ID")).body(null);
+            throw new BadRequestAlertException("A new dashboard cannot already have an ID", ENTITY_NAME, "idexists");
         }
         DashboardDTO result = dashboardService.save(dashboardDTO);
         return ResponseEntity.created(new URI("/api/dashboards/" + result.getId()))
@@ -89,7 +90,7 @@ public class DashboardResource {
     public List<DashboardDTO> getAllDashboards() {
         log.debug("REST request to get all Dashboards");
         return dashboardService.findAll();
-        }
+    }
 
     /**
      * GET  /dashboards/:id : get the "id" dashboard.
@@ -101,8 +102,8 @@ public class DashboardResource {
     @Timed
     public ResponseEntity<DashboardDTO> getDashboard(@PathVariable Long id) {
         log.debug("REST request to get Dashboard : {}", id);
-        DashboardDTO dashboardDTO = dashboardService.findOne(id);
-        return ResponseUtil.wrapOrNotFound(Optional.ofNullable(dashboardDTO));
+        Optional<DashboardDTO> dashboardDTO = dashboardService.findOne(id);
+        return ResponseUtil.wrapOrNotFound(dashboardDTO);
     }
 
     /**

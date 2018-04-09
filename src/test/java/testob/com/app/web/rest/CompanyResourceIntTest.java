@@ -14,9 +14,12 @@ import testob.com.app.web.rest.errors.ExceptionTranslator;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.web.PageableHandlerMethodArgumentResolver;
 import org.springframework.http.MediaType;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
@@ -26,10 +29,15 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.persistence.EntityManager;
+import java.util.Collections;
 import java.util.List;
+import java.util.ArrayList;
 
+import static testob.com.app.web.rest.TestUtil.createFormattingConversionService;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.hamcrest.Matchers.hasItem;
+import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -54,14 +62,22 @@ public class CompanyResourceIntTest {
     @Autowired
     private CompanyRepository companyRepository;
 
+
+
     @Autowired
     private CompanyMapper companyMapper;
+    
 
     @Autowired
     private CompanyService companyService;
 
+    /**
+     * This repository is mocked in the testob.com.app.repository.search test package.
+     *
+     * @see testob.com.app.repository.search.CompanySearchRepositoryMockConfiguration
+     */
     @Autowired
-    private CompanySearchRepository companySearchRepository;
+    private CompanySearchRepository mockCompanySearchRepository;
 
     @Autowired
     private MappingJackson2HttpMessageConverter jacksonMessageConverter;
@@ -86,6 +102,7 @@ public class CompanyResourceIntTest {
         this.restCompanyMockMvc = MockMvcBuilders.standaloneSetup(companyResource)
             .setCustomArgumentResolvers(pageableArgumentResolver)
             .setControllerAdvice(exceptionTranslator)
+            .setConversionService(createFormattingConversionService())
             .setMessageConverters(jacksonMessageConverter).build();
     }
 
@@ -110,7 +127,6 @@ public class CompanyResourceIntTest {
 
     @Before
     public void initTest() {
-        companySearchRepository.deleteAll();
         company = createEntity(em);
     }
 
@@ -135,8 +151,7 @@ public class CompanyResourceIntTest {
         assertThat(testCompany.getComments()).isEqualTo(DEFAULT_COMMENTS);
 
         // Validate the Company in Elasticsearch
-        Company companyEs = companySearchRepository.findOne(testCompany.getId());
-        assertThat(companyEs).isEqualToComparingFieldByField(testCompany);
+        verify(mockCompanySearchRepository, times(1)).save(testCompany);
     }
 
     @Test
@@ -157,6 +172,9 @@ public class CompanyResourceIntTest {
         // Validate the Company in the database
         List<Company> companyList = companyRepository.findAll();
         assertThat(companyList).hasSize(databaseSizeBeforeCreate);
+
+        // Validate the Company in Elasticsearch
+        verify(mockCompanySearchRepository, times(0)).save(company);
     }
 
     @Test
@@ -212,6 +230,7 @@ public class CompanyResourceIntTest {
             .andExpect(jsonPath("$.[*].name").value(hasItem(DEFAULT_NAME.toString())))
             .andExpect(jsonPath("$.[*].comments").value(hasItem(DEFAULT_COMMENTS.toString())));
     }
+    
 
     @Test
     @Transactional
@@ -242,11 +261,13 @@ public class CompanyResourceIntTest {
     public void updateCompany() throws Exception {
         // Initialize the database
         companyRepository.saveAndFlush(company);
-        companySearchRepository.save(company);
+
         int databaseSizeBeforeUpdate = companyRepository.findAll().size();
 
         // Update the company
-        Company updatedCompany = companyRepository.findOne(company.getId());
+        Company updatedCompany = companyRepository.findById(company.getId()).get();
+        // Disconnect from session so that the updates on updatedCompany are not directly saved in db
+        em.detach(updatedCompany);
         updatedCompany
             .code(UPDATED_CODE)
             .name(UPDATED_NAME)
@@ -267,8 +288,7 @@ public class CompanyResourceIntTest {
         assertThat(testCompany.getComments()).isEqualTo(UPDATED_COMMENTS);
 
         // Validate the Company in Elasticsearch
-        Company companyEs = companySearchRepository.findOne(testCompany.getId());
-        assertThat(companyEs).isEqualToComparingFieldByField(testCompany);
+        verify(mockCompanySearchRepository, times(1)).save(testCompany);
     }
 
     @Test
@@ -288,6 +308,9 @@ public class CompanyResourceIntTest {
         // Validate the Company in the database
         List<Company> companyList = companyRepository.findAll();
         assertThat(companyList).hasSize(databaseSizeBeforeUpdate + 1);
+
+        // Validate the Company in Elasticsearch
+        verify(mockCompanySearchRepository, times(0)).save(company);
     }
 
     @Test
@@ -295,7 +318,7 @@ public class CompanyResourceIntTest {
     public void deleteCompany() throws Exception {
         // Initialize the database
         companyRepository.saveAndFlush(company);
-        companySearchRepository.save(company);
+
         int databaseSizeBeforeDelete = companyRepository.findAll().size();
 
         // Get the company
@@ -303,13 +326,12 @@ public class CompanyResourceIntTest {
             .accept(TestUtil.APPLICATION_JSON_UTF8))
             .andExpect(status().isOk());
 
-        // Validate Elasticsearch is empty
-        boolean companyExistsInEs = companySearchRepository.exists(company.getId());
-        assertThat(companyExistsInEs).isFalse();
-
         // Validate the database is empty
         List<Company> companyList = companyRepository.findAll();
         assertThat(companyList).hasSize(databaseSizeBeforeDelete - 1);
+
+        // Validate the Company in Elasticsearch
+        verify(mockCompanySearchRepository, times(1)).deleteById(company.getId());
     }
 
     @Test
@@ -317,8 +339,8 @@ public class CompanyResourceIntTest {
     public void searchCompany() throws Exception {
         // Initialize the database
         companyRepository.saveAndFlush(company);
-        companySearchRepository.save(company);
-
+    when(mockCompanySearchRepository.search(queryStringQuery("id:" + company.getId()), PageRequest.of(0, 20)))
+        .thenReturn(new PageImpl<>(Collections.singletonList(company), PageRequest.of(0, 1), 1));
         // Search the company
         restCompanyMockMvc.perform(get("/api/_search/companies?query=id:" + company.getId()))
             .andExpect(status().isOk())

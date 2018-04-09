@@ -2,6 +2,7 @@ package testob.com.app.web.rest;
 
 import com.codahale.metrics.annotation.Timed;
 import testob.com.app.service.AddressService;
+import testob.com.app.web.rest.errors.BadRequestAlertException;
 import testob.com.app.web.rest.util.HeaderUtil;
 import testob.com.app.service.dto.AddressDTO;
 import io.github.jhipster.web.util.ResponseUtil;
@@ -49,7 +50,7 @@ public class AddressResource {
     public ResponseEntity<AddressDTO> createAddress(@Valid @RequestBody AddressDTO addressDTO) throws URISyntaxException {
         log.debug("REST request to save Address : {}", addressDTO);
         if (addressDTO.getId() != null) {
-            return ResponseEntity.badRequest().headers(HeaderUtil.createFailureAlert(ENTITY_NAME, "idexists", "A new address cannot already have an ID")).body(null);
+            throw new BadRequestAlertException("A new address cannot already have an ID", ENTITY_NAME, "idexists");
         }
         AddressDTO result = addressService.save(addressDTO);
         return ResponseEntity.created(new URI("/api/addresses/" + result.getId()))
@@ -89,7 +90,7 @@ public class AddressResource {
     public List<AddressDTO> getAllAddresses() {
         log.debug("REST request to get all Addresses");
         return addressService.findAll();
-        }
+    }
 
     /**
      * GET  /addresses/:id : get the "id" address.
@@ -101,8 +102,8 @@ public class AddressResource {
     @Timed
     public ResponseEntity<AddressDTO> getAddress(@PathVariable Long id) {
         log.debug("REST request to get Address : {}", id);
-        AddressDTO addressDTO = addressService.findOne(id);
-        return ResponseUtil.wrapOrNotFound(Optional.ofNullable(addressDTO));
+        Optional<AddressDTO> addressDTO = addressService.findOne(id);
+        return ResponseUtil.wrapOrNotFound(addressDTO);
     }
 
     /**

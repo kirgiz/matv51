@@ -14,9 +14,12 @@ import testob.com.app.web.rest.errors.ExceptionTranslator;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.web.PageableHandlerMethodArgumentResolver;
 import org.springframework.http.MediaType;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
@@ -28,10 +31,15 @@ import org.springframework.transaction.annotation.Transactional;
 import javax.persistence.EntityManager;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.Collections;
 import java.util.List;
+import java.util.ArrayList;
 
+import static testob.com.app.web.rest.TestUtil.createFormattingConversionService;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.hamcrest.Matchers.hasItem;
+import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -65,14 +73,22 @@ public class LotResourceIntTest {
     @Autowired
     private LotRepository lotRepository;
 
+
+
     @Autowired
     private LotMapper lotMapper;
+    
 
     @Autowired
     private LotService lotService;
 
+    /**
+     * This repository is mocked in the testob.com.app.repository.search test package.
+     *
+     * @see testob.com.app.repository.search.LotSearchRepositoryMockConfiguration
+     */
     @Autowired
-    private LotSearchRepository lotSearchRepository;
+    private LotSearchRepository mockLotSearchRepository;
 
     @Autowired
     private MappingJackson2HttpMessageConverter jacksonMessageConverter;
@@ -97,6 +113,7 @@ public class LotResourceIntTest {
         this.restLotMockMvc = MockMvcBuilders.standaloneSetup(lotResource)
             .setCustomArgumentResolvers(pageableArgumentResolver)
             .setControllerAdvice(exceptionTranslator)
+            .setConversionService(createFormattingConversionService())
             .setMessageConverters(jacksonMessageConverter).build();
     }
 
@@ -124,7 +141,6 @@ public class LotResourceIntTest {
 
     @Before
     public void initTest() {
-        lotSearchRepository.deleteAll();
         lot = createEntity(em);
     }
 
@@ -152,8 +168,7 @@ public class LotResourceIntTest {
         assertThat(testLot.getUnitBuyPrice()).isEqualTo(DEFAULT_UNIT_BUY_PRICE);
 
         // Validate the Lot in Elasticsearch
-        Lot lotEs = lotSearchRepository.findOne(testLot.getId());
-        assertThat(lotEs).isEqualToComparingFieldByField(testLot);
+        verify(mockLotSearchRepository, times(1)).save(testLot);
     }
 
     @Test
@@ -174,6 +189,9 @@ public class LotResourceIntTest {
         // Validate the Lot in the database
         List<Lot> lotList = lotRepository.findAll();
         assertThat(lotList).hasSize(databaseSizeBeforeCreate);
+
+        // Validate the Lot in Elasticsearch
+        verify(mockLotSearchRepository, times(0)).save(lot);
     }
 
     @Test
@@ -270,6 +288,7 @@ public class LotResourceIntTest {
             .andExpect(jsonPath("$.[*].comments").value(hasItem(DEFAULT_COMMENTS.toString())))
             .andExpect(jsonPath("$.[*].unitBuyPrice").value(hasItem(DEFAULT_UNIT_BUY_PRICE.doubleValue())));
     }
+    
 
     @Test
     @Transactional
@@ -303,11 +322,13 @@ public class LotResourceIntTest {
     public void updateLot() throws Exception {
         // Initialize the database
         lotRepository.saveAndFlush(lot);
-        lotSearchRepository.save(lot);
+
         int databaseSizeBeforeUpdate = lotRepository.findAll().size();
 
         // Update the lot
-        Lot updatedLot = lotRepository.findOne(lot.getId());
+        Lot updatedLot = lotRepository.findById(lot.getId()).get();
+        // Disconnect from session so that the updates on updatedLot are not directly saved in db
+        em.detach(updatedLot);
         updatedLot
             .code(UPDATED_CODE)
             .description(UPDATED_DESCRIPTION)
@@ -334,8 +355,7 @@ public class LotResourceIntTest {
         assertThat(testLot.getUnitBuyPrice()).isEqualTo(UPDATED_UNIT_BUY_PRICE);
 
         // Validate the Lot in Elasticsearch
-        Lot lotEs = lotSearchRepository.findOne(testLot.getId());
-        assertThat(lotEs).isEqualToComparingFieldByField(testLot);
+        verify(mockLotSearchRepository, times(1)).save(testLot);
     }
 
     @Test
@@ -355,6 +375,9 @@ public class LotResourceIntTest {
         // Validate the Lot in the database
         List<Lot> lotList = lotRepository.findAll();
         assertThat(lotList).hasSize(databaseSizeBeforeUpdate + 1);
+
+        // Validate the Lot in Elasticsearch
+        verify(mockLotSearchRepository, times(0)).save(lot);
     }
 
     @Test
@@ -362,7 +385,7 @@ public class LotResourceIntTest {
     public void deleteLot() throws Exception {
         // Initialize the database
         lotRepository.saveAndFlush(lot);
-        lotSearchRepository.save(lot);
+
         int databaseSizeBeforeDelete = lotRepository.findAll().size();
 
         // Get the lot
@@ -370,13 +393,12 @@ public class LotResourceIntTest {
             .accept(TestUtil.APPLICATION_JSON_UTF8))
             .andExpect(status().isOk());
 
-        // Validate Elasticsearch is empty
-        boolean lotExistsInEs = lotSearchRepository.exists(lot.getId());
-        assertThat(lotExistsInEs).isFalse();
-
         // Validate the database is empty
         List<Lot> lotList = lotRepository.findAll();
         assertThat(lotList).hasSize(databaseSizeBeforeDelete - 1);
+
+        // Validate the Lot in Elasticsearch
+        verify(mockLotSearchRepository, times(1)).deleteById(lot.getId());
     }
 
     @Test
@@ -384,8 +406,8 @@ public class LotResourceIntTest {
     public void searchLot() throws Exception {
         // Initialize the database
         lotRepository.saveAndFlush(lot);
-        lotSearchRepository.save(lot);
-
+    when(mockLotSearchRepository.search(queryStringQuery("id:" + lot.getId()), PageRequest.of(0, 20)))
+        .thenReturn(new PageImpl<>(Collections.singletonList(lot), PageRequest.of(0, 1), 1));
         // Search the lot
         restLotMockMvc.perform(get("/api/_search/lots?query=id:" + lot.getId()))
             .andExpect(status().isOk())

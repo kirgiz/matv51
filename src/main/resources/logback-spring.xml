@@ -22,12 +22,9 @@
     </appender>
 -->
 
-    <logger name="testob.com.app" level="#logback.loglevel#"/>
-
-    <logger name="io.github.jhipster" level="#logback.loglevel#"/>
-
     <logger name="javax.activation" level="WARN"/>
     <logger name="javax.mail" level="WARN"/>
+    <logger name="javax.management.remote" level="WARN"/>
     <logger name="javax.xml.bind" level="WARN"/>
     <logger name="ch.qos.logback" level="WARN"/>
     <logger name="com.codahale.metrics" level="WARN"/>
@@ -62,12 +59,5 @@
     <contextListener class="ch.qos.logback.classic.jul.LevelChangePropagator">
         <resetJUL>true</resetJUL>
     </contextListener>
-
-    <root level="#logback.loglevel#">
-        <appender-ref ref="CONSOLE"/>
-<!--
-        <appender-ref ref="FILE"/>
--->
-    </root>
 
 </configuration>

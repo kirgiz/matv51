@@ -1,11 +1,8 @@
 package testob.com.app.service.dto;
 
-
 import java.time.LocalDate;
 import javax.validation.constraints.*;
 import java.io.Serializable;
-import java.util.HashSet;
-import java.util.Set;
 import java.util.Objects;
 
 /**
@@ -75,7 +72,7 @@ public class ForexratesDTO implements Serializable {
         }
 
         ForexratesDTO forexratesDTO = (ForexratesDTO) o;
-        if(forexratesDTO.getId() == null || getId() == null) {
+        if (forexratesDTO.getId() == null || getId() == null) {
             return false;
         }
         return Objects.equals(getId(), forexratesDTO.getId());
@@ -91,7 +88,9 @@ public class ForexratesDTO implements Serializable {
         return "ForexratesDTO{" +
             "id=" + getId() +
             ", rateDate='" + getRateDate() + "'" +
-            ", straighRate='" + getStraighRate() + "'" +
+            ", straighRate=" + getStraighRate() +
+            ", rateForCurrency=" + getRateForCurrencyId() +
+            ", rateForCurrency='" + getRateForCurrencyName() + "'" +
             "}";
     }
 }
