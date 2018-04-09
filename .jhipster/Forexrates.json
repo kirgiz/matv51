@@ -1,0 +1,35 @@
+{
+    "fluentMethods": true,
+    "relationships": [
+        {
+            "relationshipType": "many-to-one",
+            "relationshipValidateRules": "required",
+            "relationshipName": "rateForCurrency",
+            "otherEntityName": "currency",
+            "otherEntityField": "name"
+        }
+    ],
+    "fields": [
+        {
+            "fieldName": "rateDate",
+            "fieldType": "LocalDate",
+            "fieldValidateRules": [
+                "required"
+            ]
+        },
+        {
+            "fieldName": "straighRate",
+            "fieldType": "Double",
+            "fieldValidateRules": [
+                "required"
+            ]
+        }
+    ],
+    "changelogDate": "20180409065647",
+    "entityTableName": "forexrates",
+    "dto": "mapstruct",
+    "pagination": "no",
+    "service": "serviceClass",
+    "searchEngine": "elasticsearch",
+    "angularJSSuffix": "StockAndSalesUtility"
+}
