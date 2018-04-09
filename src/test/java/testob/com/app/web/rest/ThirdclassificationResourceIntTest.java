@@ -13,9 +13,12 @@ import testob.com.app.web.rest.errors.ExceptionTranslator;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.web.PageableHandlerMethodArgumentResolver;
 import org.springframework.http.MediaType;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
@@ -25,10 +28,15 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.persistence.EntityManager;
+import java.util.Collections;
 import java.util.List;
+import java.util.ArrayList;
 
+import static testob.com.app.web.rest.TestUtil.createFormattingConversionService;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.hamcrest.Matchers.hasItem;
+import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -53,14 +61,22 @@ public class ThirdclassificationResourceIntTest {
     @Autowired
     private ThirdclassificationRepository thirdclassificationRepository;
 
+
+
     @Autowired
     private ThirdclassificationMapper thirdclassificationMapper;
+    
 
     @Autowired
     private ThirdclassificationService thirdclassificationService;
 
+    /**
+     * This repository is mocked in the testob.com.app.repository.search test package.
+     *
+     * @see testob.com.app.repository.search.ThirdclassificationSearchRepositoryMockConfiguration
+     */
     @Autowired
-    private ThirdclassificationSearchRepository thirdclassificationSearchRepository;
+    private ThirdclassificationSearchRepository mockThirdclassificationSearchRepository;
 
     @Autowired
     private MappingJackson2HttpMessageConverter jacksonMessageConverter;
@@ -85,6 +101,7 @@ public class ThirdclassificationResourceIntTest {
         this.restThirdclassificationMockMvc = MockMvcBuilders.standaloneSetup(thirdclassificationResource)
             .setCustomArgumentResolvers(pageableArgumentResolver)
             .setControllerAdvice(exceptionTranslator)
+            .setConversionService(createFormattingConversionService())
             .setMessageConverters(jacksonMessageConverter).build();
     }
 
@@ -104,7 +121,6 @@ public class ThirdclassificationResourceIntTest {
 
     @Before
     public void initTest() {
-        thirdclassificationSearchRepository.deleteAll();
         thirdclassification = createEntity(em);
     }
 
@@ -129,8 +145,7 @@ public class ThirdclassificationResourceIntTest {
         assertThat(testThirdclassification.getComments()).isEqualTo(DEFAULT_COMMENTS);
 
         // Validate the Thirdclassification in Elasticsearch
-        Thirdclassification thirdclassificationEs = thirdclassificationSearchRepository.findOne(testThirdclassification.getId());
-        assertThat(thirdclassificationEs).isEqualToComparingFieldByField(testThirdclassification);
+        verify(mockThirdclassificationSearchRepository, times(1)).save(testThirdclassification);
     }
 
     @Test
@@ -151,6 +166,9 @@ public class ThirdclassificationResourceIntTest {
         // Validate the Thirdclassification in the database
         List<Thirdclassification> thirdclassificationList = thirdclassificationRepository.findAll();
         assertThat(thirdclassificationList).hasSize(databaseSizeBeforeCreate);
+
+        // Validate the Thirdclassification in Elasticsearch
+        verify(mockThirdclassificationSearchRepository, times(0)).save(thirdclassification);
     }
 
     @Test
@@ -206,6 +224,7 @@ public class ThirdclassificationResourceIntTest {
             .andExpect(jsonPath("$.[*].name").value(hasItem(DEFAULT_NAME.toString())))
             .andExpect(jsonPath("$.[*].comments").value(hasItem(DEFAULT_COMMENTS.toString())));
     }
+    
 
     @Test
     @Transactional
@@ -236,11 +255,13 @@ public class ThirdclassificationResourceIntTest {
     public void updateThirdclassification() throws Exception {
         // Initialize the database
         thirdclassificationRepository.saveAndFlush(thirdclassification);
-        thirdclassificationSearchRepository.save(thirdclassification);
+
         int databaseSizeBeforeUpdate = thirdclassificationRepository.findAll().size();
 
         // Update the thirdclassification
-        Thirdclassification updatedThirdclassification = thirdclassificationRepository.findOne(thirdclassification.getId());
+        Thirdclassification updatedThirdclassification = thirdclassificationRepository.findById(thirdclassification.getId()).get();
+        // Disconnect from session so that the updates on updatedThirdclassification are not directly saved in db
+        em.detach(updatedThirdclassification);
         updatedThirdclassification
             .code(UPDATED_CODE)
             .name(UPDATED_NAME)
@@ -261,8 +282,7 @@ public class ThirdclassificationResourceIntTest {
         assertThat(testThirdclassification.getComments()).isEqualTo(UPDATED_COMMENTS);
 
         // Validate the Thirdclassification in Elasticsearch
-        Thirdclassification thirdclassificationEs = thirdclassificationSearchRepository.findOne(testThirdclassification.getId());
-        assertThat(thirdclassificationEs).isEqualToComparingFieldByField(testThirdclassification);
+        verify(mockThirdclassificationSearchRepository, times(1)).save(testThirdclassification);
     }
 
     @Test
@@ -282,6 +302,9 @@ public class ThirdclassificationResourceIntTest {
         // Validate the Thirdclassification in the database
         List<Thirdclassification> thirdclassificationList = thirdclassificationRepository.findAll();
         assertThat(thirdclassificationList).hasSize(databaseSizeBeforeUpdate + 1);
+
+        // Validate the Thirdclassification in Elasticsearch
+        verify(mockThirdclassificationSearchRepository, times(0)).save(thirdclassification);
     }
 
     @Test
@@ -289,7 +312,7 @@ public class ThirdclassificationResourceIntTest {
     public void deleteThirdclassification() throws Exception {
         // Initialize the database
         thirdclassificationRepository.saveAndFlush(thirdclassification);
-        thirdclassificationSearchRepository.save(thirdclassification);
+
         int databaseSizeBeforeDelete = thirdclassificationRepository.findAll().size();
 
         // Get the thirdclassification
@@ -297,13 +320,12 @@ public class ThirdclassificationResourceIntTest {
             .accept(TestUtil.APPLICATION_JSON_UTF8))
             .andExpect(status().isOk());
 
-        // Validate Elasticsearch is empty
-        boolean thirdclassificationExistsInEs = thirdclassificationSearchRepository.exists(thirdclassification.getId());
-        assertThat(thirdclassificationExistsInEs).isFalse();
-
         // Validate the database is empty
         List<Thirdclassification> thirdclassificationList = thirdclassificationRepository.findAll();
         assertThat(thirdclassificationList).hasSize(databaseSizeBeforeDelete - 1);
+
+        // Validate the Thirdclassification in Elasticsearch
+        verify(mockThirdclassificationSearchRepository, times(1)).deleteById(thirdclassification.getId());
     }
 
     @Test
@@ -311,8 +333,8 @@ public class ThirdclassificationResourceIntTest {
     public void searchThirdclassification() throws Exception {
         // Initialize the database
         thirdclassificationRepository.saveAndFlush(thirdclassification);
-        thirdclassificationSearchRepository.save(thirdclassification);
-
+    when(mockThirdclassificationSearchRepository.search(queryStringQuery("id:" + thirdclassification.getId()), PageRequest.of(0, 20)))
+        .thenReturn(new PageImpl<>(Collections.singletonList(thirdclassification), PageRequest.of(0, 1), 1));
         // Search the thirdclassification
         restThirdclassificationMockMvc.perform(get("/api/_search/thirdclassifications?query=id:" + thirdclassification.getId()))
             .andExpect(status().isOk())

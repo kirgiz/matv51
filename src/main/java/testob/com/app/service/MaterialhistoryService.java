@@ -7,10 +7,13 @@ import testob.com.app.service.dto.MaterialhistoryDTO;
 import testob.com.app.service.mapper.MaterialhistoryMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Optional;
 
 
 import static org.elasticsearch.index.query.QueryBuilders.*;
@@ -52,10 +55,10 @@ public class MaterialhistoryService {
     }
 
     /**
-     *  Get all the materialhistories.
+     * Get all the materialhistories.
      *
-     *  @param pageable the pagination information
-     *  @return the list of entities
+     * @param pageable the pagination information
+     * @return the list of entities
      */
     @Transactional(readOnly = true)
     public Page<MaterialhistoryDTO> findAll(Pageable pageable) {
@@ -65,40 +68,50 @@ public class MaterialhistoryService {
     }
 
     /**
-     *  Get one materialhistory by id.
+     * Get all the Materialhistory with eager load of many-to-many relationships.
      *
-     *  @param id the id of the entity
-     *  @return the entity
+     * @return the list of entities
+     */
+    public Page<MaterialhistoryDTO> findAllWithEagerRelationships(Pageable pageable) {
+        return materialhistoryRepository.findAllWithEagerRelationships(pageable).map(materialhistoryMapper::toDto);
+    }
+    
+
+    /**
+     * Get one materialhistory by id.
+     *
+     * @param id the id of the entity
+     * @return the entity
      */
     @Transactional(readOnly = true)
-    public MaterialhistoryDTO findOne(Long id) {
+    public Optional<MaterialhistoryDTO> findOne(Long id) {
         log.debug("Request to get Materialhistory : {}", id);
-        Materialhistory materialhistory = materialhistoryRepository.findOneWithEagerRelationships(id);
-        return materialhistoryMapper.toDto(materialhistory);
+        return materialhistoryRepository.findOneWithEagerRelationships(id)
+            .map(materialhistoryMapper::toDto);
     }
 
     /**
-     *  Delete the  materialhistory by id.
+     * Delete the materialhistory by id.
      *
-     *  @param id the id of the entity
+     * @param id the id of the entity
      */
     public void delete(Long id) {
         log.debug("Request to delete Materialhistory : {}", id);
-        materialhistoryRepository.delete(id);
-        materialhistorySearchRepository.delete(id);
+        materialhistoryRepository.deleteById(id);
+        materialhistorySearchRepository.deleteById(id);
     }
 
     /**
      * Search for the materialhistory corresponding to the query.
      *
-     *  @param query the query of the search
-     *  @param pageable the pagination information
-     *  @return the list of entities
+     * @param query the query of the search
+     * @param pageable the pagination information
+     * @return the list of entities
      */
     @Transactional(readOnly = true)
     public Page<MaterialhistoryDTO> search(String query, Pageable pageable) {
         log.debug("Request to search for a page of Materialhistories for query {}", query);
-        Page<Materialhistory> result = materialhistorySearchRepository.search(queryStringQuery(query), pageable);
-        return result.map(materialhistoryMapper::toDto);
+        return materialhistorySearchRepository.search(queryStringQuery(query), pageable)
+            .map(materialhistoryMapper::toDto);
     }
 }

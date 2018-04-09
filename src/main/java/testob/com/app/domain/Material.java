@@ -1,11 +1,13 @@
 package testob.com.app.domain;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import org.hibernate.annotations.Cache;
 import org.hibernate.annotations.CacheConcurrencyStrategy;
-import org.springframework.data.elasticsearch.annotations.Document;
 
 import javax.persistence.*;
 import javax.validation.constraints.*;
+
+import org.springframework.data.elasticsearch.annotations.Document;
 import java.io.Serializable;
 import java.time.LocalDate;
 import java.util.Objects;
@@ -46,26 +48,32 @@ public class Material implements Serializable {
 
     @ManyToOne(optional = false)
     @NotNull
+    @JsonIgnoreProperties("materialCategories")
     private Materialclassification materialTypeDef;
 
     @ManyToOne(optional = false)
     @NotNull
+    @JsonIgnoreProperties("materialBuyCurrencies")
     private Currency buycurrency;
 
     @ManyToOne(optional = false)
     @NotNull
+    @JsonIgnoreProperties("materialSellCurrencies")
     private Currency sellcurrency;
 
     @ManyToOne(optional = false)
     @NotNull
+    @JsonIgnoreProperties("materialLots")
     private Lot lotIdentifier;
 
     @ManyToOne(optional = false)
     @NotNull
+    @JsonIgnoreProperties("materialCategs")
     private Materialclassification materialClassif;
 
     @ManyToOne(optional = false)
     @NotNull
+    @JsonIgnoreProperties("materialCats")
     private Materialclassification materialTypeCat;
 
     // jhipster-needle-entity-add-field - JHipster will add fields here, do not remove

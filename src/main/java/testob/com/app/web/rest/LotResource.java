@@ -2,10 +2,10 @@ package testob.com.app.web.rest;
 
 import com.codahale.metrics.annotation.Timed;
 import testob.com.app.service.LotService;
+import testob.com.app.web.rest.errors.BadRequestAlertException;
 import testob.com.app.web.rest.util.HeaderUtil;
 import testob.com.app.web.rest.util.PaginationUtil;
 import testob.com.app.service.dto.LotDTO;
-import io.swagger.annotations.ApiParam;
 import io.github.jhipster.web.util.ResponseUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -55,7 +55,7 @@ public class LotResource {
     public ResponseEntity<LotDTO> createLot(@Valid @RequestBody LotDTO lotDTO) throws URISyntaxException {
         log.debug("REST request to save Lot : {}", lotDTO);
         if (lotDTO.getId() != null) {
-            return ResponseEntity.badRequest().headers(HeaderUtil.createFailureAlert(ENTITY_NAME, "idexists", "A new lot cannot already have an ID")).body(null);
+            throw new BadRequestAlertException("A new lot cannot already have an ID", ENTITY_NAME, "idexists");
         }
         LotDTO result = lotService.save(lotDTO);
         return ResponseEntity.created(new URI("/api/lots/" + result.getId()))
@@ -93,7 +93,7 @@ public class LotResource {
      */
     @GetMapping("/lots")
     @Timed
-    public ResponseEntity<List<LotDTO>> getAllLots(@ApiParam Pageable pageable) {
+    public ResponseEntity<List<LotDTO>> getAllLots(Pageable pageable) {
         log.debug("REST request to get a page of Lots");
         Page<LotDTO> page = lotService.findAll(pageable);
         HttpHeaders headers = PaginationUtil.generatePaginationHttpHeaders(page, "/api/lots");
@@ -110,8 +110,8 @@ public class LotResource {
     @Timed
     public ResponseEntity<LotDTO> getLot(@PathVariable Long id) {
         log.debug("REST request to get Lot : {}", id);
-        LotDTO lotDTO = lotService.findOne(id);
-        return ResponseUtil.wrapOrNotFound(Optional.ofNullable(lotDTO));
+        Optional<LotDTO> lotDTO = lotService.findOne(id);
+        return ResponseUtil.wrapOrNotFound(lotDTO);
     }
 
     /**
@@ -138,7 +138,7 @@ public class LotResource {
      */
     @GetMapping("/_search/lots")
     @Timed
-    public ResponseEntity<List<LotDTO>> searchLots(@RequestParam String query, @ApiParam Pageable pageable) {
+    public ResponseEntity<List<LotDTO>> searchLots(@RequestParam String query, Pageable pageable) {
         log.debug("REST request to search for a page of Lots for query {}", query);
         Page<LotDTO> page = lotService.search(query, pageable);
         HttpHeaders headers = PaginationUtil.generateSearchPaginationHttpHeaders(query, page, "/api/_search/lots");

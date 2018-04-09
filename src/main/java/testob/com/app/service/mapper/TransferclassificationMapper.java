@@ -9,10 +9,12 @@ import org.mapstruct.*;
  * Mapper for the entity Transferclassification and its DTO TransferclassificationDTO.
  */
 @Mapper(componentModel = "spring", uses = {})
-public interface TransferclassificationMapper extends EntityMapper <TransferclassificationDTO, Transferclassification> {
-    
+public interface TransferclassificationMapper extends EntityMapper<TransferclassificationDTO, Transferclassification> {
+
+
     @Mapping(target = "materialhistoryCategories", ignore = true)
-    Transferclassification toEntity(TransferclassificationDTO transferclassificationDTO); 
+    Transferclassification toEntity(TransferclassificationDTO transferclassificationDTO);
+
     default Transferclassification fromId(Long id) {
         if (id == null) {
             return null;

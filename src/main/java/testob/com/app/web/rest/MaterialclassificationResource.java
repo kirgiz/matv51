@@ -2,10 +2,10 @@ package testob.com.app.web.rest;
 
 import com.codahale.metrics.annotation.Timed;
 import testob.com.app.service.MaterialclassificationService;
+import testob.com.app.web.rest.errors.BadRequestAlertException;
 import testob.com.app.web.rest.util.HeaderUtil;
 import testob.com.app.web.rest.util.PaginationUtil;
 import testob.com.app.service.dto.MaterialclassificationDTO;
-import io.swagger.annotations.ApiParam;
 import io.github.jhipster.web.util.ResponseUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -55,7 +55,7 @@ public class MaterialclassificationResource {
     public ResponseEntity<MaterialclassificationDTO> createMaterialclassification(@Valid @RequestBody MaterialclassificationDTO materialclassificationDTO) throws URISyntaxException {
         log.debug("REST request to save Materialclassification : {}", materialclassificationDTO);
         if (materialclassificationDTO.getId() != null) {
-            return ResponseEntity.badRequest().headers(HeaderUtil.createFailureAlert(ENTITY_NAME, "idexists", "A new materialclassification cannot already have an ID")).body(null);
+            throw new BadRequestAlertException("A new materialclassification cannot already have an ID", ENTITY_NAME, "idexists");
         }
         MaterialclassificationDTO result = materialclassificationService.save(materialclassificationDTO);
         return ResponseEntity.created(new URI("/api/materialclassifications/" + result.getId()))
@@ -93,7 +93,7 @@ public class MaterialclassificationResource {
      */
     @GetMapping("/materialclassifications")
     @Timed
-    public ResponseEntity<List<MaterialclassificationDTO>> getAllMaterialclassifications(@ApiParam Pageable pageable) {
+    public ResponseEntity<List<MaterialclassificationDTO>> getAllMaterialclassifications(Pageable pageable) {
         log.debug("REST request to get a page of Materialclassifications");
         Page<MaterialclassificationDTO> page = materialclassificationService.findAll(pageable);
         HttpHeaders headers = PaginationUtil.generatePaginationHttpHeaders(page, "/api/materialclassifications");
@@ -110,8 +110,8 @@ public class MaterialclassificationResource {
     @Timed
     public ResponseEntity<MaterialclassificationDTO> getMaterialclassification(@PathVariable Long id) {
         log.debug("REST request to get Materialclassification : {}", id);
-        MaterialclassificationDTO materialclassificationDTO = materialclassificationService.findOne(id);
-        return ResponseUtil.wrapOrNotFound(Optional.ofNullable(materialclassificationDTO));
+        Optional<MaterialclassificationDTO> materialclassificationDTO = materialclassificationService.findOne(id);
+        return ResponseUtil.wrapOrNotFound(materialclassificationDTO);
     }
 
     /**
@@ -138,7 +138,7 @@ public class MaterialclassificationResource {
      */
     @GetMapping("/_search/materialclassifications")
     @Timed
-    public ResponseEntity<List<MaterialclassificationDTO>> searchMaterialclassifications(@RequestParam String query, @ApiParam Pageable pageable) {
+    public ResponseEntity<List<MaterialclassificationDTO>> searchMaterialclassifications(@RequestParam String query, Pageable pageable) {
         log.debug("REST request to search for a page of Materialclassifications for query {}", query);
         Page<MaterialclassificationDTO> page = materialclassificationService.search(query, pageable);
         HttpHeaders headers = PaginationUtil.generateSearchPaginationHttpHeaders(query, page, "/api/_search/materialclassifications");

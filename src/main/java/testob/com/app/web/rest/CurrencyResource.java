@@ -2,10 +2,10 @@ package testob.com.app.web.rest;
 
 import com.codahale.metrics.annotation.Timed;
 import testob.com.app.service.CurrencyService;
+import testob.com.app.web.rest.errors.BadRequestAlertException;
 import testob.com.app.web.rest.util.HeaderUtil;
 import testob.com.app.web.rest.util.PaginationUtil;
 import testob.com.app.service.dto.CurrencyDTO;
-import io.swagger.annotations.ApiParam;
 import io.github.jhipster.web.util.ResponseUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -55,7 +55,7 @@ public class CurrencyResource {
     public ResponseEntity<CurrencyDTO> createCurrency(@Valid @RequestBody CurrencyDTO currencyDTO) throws URISyntaxException {
         log.debug("REST request to save Currency : {}", currencyDTO);
         if (currencyDTO.getId() != null) {
-            return ResponseEntity.badRequest().headers(HeaderUtil.createFailureAlert(ENTITY_NAME, "idexists", "A new currency cannot already have an ID")).body(null);
+            throw new BadRequestAlertException("A new currency cannot already have an ID", ENTITY_NAME, "idexists");
         }
         CurrencyDTO result = currencyService.save(currencyDTO);
         return ResponseEntity.created(new URI("/api/currencies/" + result.getId()))
@@ -93,7 +93,7 @@ public class CurrencyResource {
      */
     @GetMapping("/currencies")
     @Timed
-    public ResponseEntity<List<CurrencyDTO>> getAllCurrencies(@ApiParam Pageable pageable) {
+    public ResponseEntity<List<CurrencyDTO>> getAllCurrencies(Pageable pageable) {
         log.debug("REST request to get a page of Currencies");
         Page<CurrencyDTO> page = currencyService.findAll(pageable);
         HttpHeaders headers = PaginationUtil.generatePaginationHttpHeaders(page, "/api/currencies");
@@ -110,8 +110,8 @@ public class CurrencyResource {
     @Timed
     public ResponseEntity<CurrencyDTO> getCurrency(@PathVariable Long id) {
         log.debug("REST request to get Currency : {}", id);
-        CurrencyDTO currencyDTO = currencyService.findOne(id);
-        return ResponseUtil.wrapOrNotFound(Optional.ofNullable(currencyDTO));
+        Optional<CurrencyDTO> currencyDTO = currencyService.findOne(id);
+        return ResponseUtil.wrapOrNotFound(currencyDTO);
     }
 
     /**
@@ -138,7 +138,7 @@ public class CurrencyResource {
      */
     @GetMapping("/_search/currencies")
     @Timed
-    public ResponseEntity<List<CurrencyDTO>> searchCurrencies(@RequestParam String query, @ApiParam Pageable pageable) {
+    public ResponseEntity<List<CurrencyDTO>> searchCurrencies(@RequestParam String query, Pageable pageable) {
         log.debug("REST request to search for a page of Currencies for query {}", query);
         Page<CurrencyDTO> page = currencyService.search(query, pageable);
         HttpHeaders headers = PaginationUtil.generateSearchPaginationHttpHeaders(query, page, "/api/_search/currencies");

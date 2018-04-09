@@ -1,12 +1,14 @@
 package testob.com.app.domain;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import org.hibernate.annotations.Cache;
 import org.hibernate.annotations.CacheConcurrencyStrategy;
-import org.springframework.data.elasticsearch.annotations.Document;
 
 import javax.persistence.*;
 import javax.validation.constraints.*;
+
+import org.springframework.data.elasticsearch.annotations.Document;
 import java.io.Serializable;
 import java.time.LocalDate;
 import java.util.HashSet;
@@ -55,12 +57,12 @@ public class Lot implements Serializable {
     private Double unitBuyPrice;
 
     @OneToMany(mappedBy = "lotIdentifier")
-    @JsonIgnore
     @Cache(usage = CacheConcurrencyStrategy.NONSTRICT_READ_WRITE)
     private Set<Material> materialLots = new HashSet<>();
 
     @ManyToOne(optional = false)
     @NotNull
+    @JsonIgnoreProperties("lotBuyCurrencies")
     private Currency buycurrencylot;
 
     // jhipster-needle-entity-add-field - JHipster will add fields here, do not remove
@@ -216,9 +218,9 @@ public class Lot implements Serializable {
             ", code='" + getCode() + "'" +
             ", description='" + getDescription() + "'" +
             ", creationDate='" + getCreationDate() + "'" +
-            ", numberOfItems='" + getNumberOfItems() + "'" +
+            ", numberOfItems=" + getNumberOfItems() +
             ", comments='" + getComments() + "'" +
-            ", unitBuyPrice='" + getUnitBuyPrice() + "'" +
+            ", unitBuyPrice=" + getUnitBuyPrice() +
             "}";
     }
 }

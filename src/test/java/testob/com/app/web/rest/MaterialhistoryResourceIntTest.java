@@ -16,9 +16,12 @@ import testob.com.app.web.rest.errors.ExceptionTranslator;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.web.PageableHandlerMethodArgumentResolver;
 import org.springframework.http.MediaType;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
@@ -30,10 +33,15 @@ import org.springframework.transaction.annotation.Transactional;
 import javax.persistence.EntityManager;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.Collections;
 import java.util.List;
+import java.util.ArrayList;
 
+import static testob.com.app.web.rest.TestUtil.createFormattingConversionService;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.hamcrest.Matchers.hasItem;
+import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -61,14 +69,25 @@ public class MaterialhistoryResourceIntTest {
     @Autowired
     private MaterialhistoryRepository materialhistoryRepository;
 
+    @Mock
+    private MaterialhistoryRepository materialhistoryRepositoryMock;
+
     @Autowired
     private MaterialhistoryMapper materialhistoryMapper;
+    
+    @Mock
+    private MaterialhistoryService materialhistoryServiceMock;
 
     @Autowired
     private MaterialhistoryService materialhistoryService;
 
+    /**
+     * This repository is mocked in the testob.com.app.repository.search test package.
+     *
+     * @see testob.com.app.repository.search.MaterialhistorySearchRepositoryMockConfiguration
+     */
     @Autowired
-    private MaterialhistorySearchRepository materialhistorySearchRepository;
+    private MaterialhistorySearchRepository mockMaterialhistorySearchRepository;
 
     @Autowired
     private MappingJackson2HttpMessageConverter jacksonMessageConverter;
@@ -93,6 +112,7 @@ public class MaterialhistoryResourceIntTest {
         this.restMaterialhistoryMockMvc = MockMvcBuilders.standaloneSetup(materialhistoryResource)
             .setCustomArgumentResolvers(pageableArgumentResolver)
             .setControllerAdvice(exceptionTranslator)
+            .setConversionService(createFormattingConversionService())
             .setMessageConverters(jacksonMessageConverter).build();
     }
 
@@ -128,7 +148,6 @@ public class MaterialhistoryResourceIntTest {
 
     @Before
     public void initTest() {
-        materialhistorySearchRepository.deleteAll();
         materialhistory = createEntity(em);
     }
 
@@ -154,8 +173,7 @@ public class MaterialhistoryResourceIntTest {
         assertThat(testMaterialhistory.getComments()).isEqualTo(DEFAULT_COMMENTS);
 
         // Validate the Materialhistory in Elasticsearch
-        Materialhistory materialhistoryEs = materialhistorySearchRepository.findOne(testMaterialhistory.getId());
-        assertThat(materialhistoryEs).isEqualToComparingFieldByField(testMaterialhistory);
+        verify(mockMaterialhistorySearchRepository, times(1)).save(testMaterialhistory);
     }
 
     @Test
@@ -176,6 +194,9 @@ public class MaterialhistoryResourceIntTest {
         // Validate the Materialhistory in the database
         List<Materialhistory> materialhistoryList = materialhistoryRepository.findAll();
         assertThat(materialhistoryList).hasSize(databaseSizeBeforeCreate);
+
+        // Validate the Materialhistory in Elasticsearch
+        verify(mockMaterialhistorySearchRepository, times(0)).save(materialhistory);
     }
 
     @Test
@@ -213,6 +234,37 @@ public class MaterialhistoryResourceIntTest {
             .andExpect(jsonPath("$.[*].price").value(hasItem(DEFAULT_PRICE.doubleValue())))
             .andExpect(jsonPath("$.[*].comments").value(hasItem(DEFAULT_COMMENTS.toString())));
     }
+    
+    public void getAllMaterialhistoriesWithEagerRelationshipsIsEnabled() throws Exception {
+        MaterialhistoryResource materialhistoryResource = new MaterialhistoryResource(materialhistoryServiceMock);
+        when(materialhistoryServiceMock.findAllWithEagerRelationships(any())).thenReturn(new PageImpl(new ArrayList<>()));
+
+        MockMvc restMaterialhistoryMockMvc = MockMvcBuilders.standaloneSetup(materialhistoryResource)
+            .setCustomArgumentResolvers(pageableArgumentResolver)
+            .setControllerAdvice(exceptionTranslator)
+            .setConversionService(createFormattingConversionService())
+            .setMessageConverters(jacksonMessageConverter).build();
+
+        restMaterialhistoryMockMvc.perform(get("/api/materialhistories?eagerload=true"))
+        .andExpect(status().isOk());
+
+        verify(materialhistoryServiceMock, times(1)).findAllWithEagerRelationships(any());
+    }
+
+    public void getAllMaterialhistoriesWithEagerRelationshipsIsNotEnabled() throws Exception {
+        MaterialhistoryResource materialhistoryResource = new MaterialhistoryResource(materialhistoryServiceMock);
+            when(materialhistoryServiceMock.findAllWithEagerRelationships(any())).thenReturn(new PageImpl(new ArrayList<>()));
+            MockMvc restMaterialhistoryMockMvc = MockMvcBuilders.standaloneSetup(materialhistoryResource)
+            .setCustomArgumentResolvers(pageableArgumentResolver)
+            .setControllerAdvice(exceptionTranslator)
+            .setConversionService(createFormattingConversionService())
+            .setMessageConverters(jacksonMessageConverter).build();
+
+        restMaterialhistoryMockMvc.perform(get("/api/materialhistories?eagerload=true"))
+        .andExpect(status().isOk());
+
+            verify(materialhistoryServiceMock, times(1)).findAllWithEagerRelationships(any());
+    }
 
     @Test
     @Transactional
@@ -244,11 +296,13 @@ public class MaterialhistoryResourceIntTest {
     public void updateMaterialhistory() throws Exception {
         // Initialize the database
         materialhistoryRepository.saveAndFlush(materialhistory);
-        materialhistorySearchRepository.save(materialhistory);
+
         int databaseSizeBeforeUpdate = materialhistoryRepository.findAll().size();
 
         // Update the materialhistory
-        Materialhistory updatedMaterialhistory = materialhistoryRepository.findOne(materialhistory.getId());
+        Materialhistory updatedMaterialhistory = materialhistoryRepository.findById(materialhistory.getId()).get();
+        // Disconnect from session so that the updates on updatedMaterialhistory are not directly saved in db
+        em.detach(updatedMaterialhistory);
         updatedMaterialhistory
             .code(UPDATED_CODE)
             .creationDate(UPDATED_CREATION_DATE)
@@ -271,8 +325,7 @@ public class MaterialhistoryResourceIntTest {
         assertThat(testMaterialhistory.getComments()).isEqualTo(UPDATED_COMMENTS);
 
         // Validate the Materialhistory in Elasticsearch
-        Materialhistory materialhistoryEs = materialhistorySearchRepository.findOne(testMaterialhistory.getId());
-        assertThat(materialhistoryEs).isEqualToComparingFieldByField(testMaterialhistory);
+        verify(mockMaterialhistorySearchRepository, times(1)).save(testMaterialhistory);
     }
 
     @Test
@@ -292,6 +345,9 @@ public class MaterialhistoryResourceIntTest {
         // Validate the Materialhistory in the database
         List<Materialhistory> materialhistoryList = materialhistoryRepository.findAll();
         assertThat(materialhistoryList).hasSize(databaseSizeBeforeUpdate + 1);
+
+        // Validate the Materialhistory in Elasticsearch
+        verify(mockMaterialhistorySearchRepository, times(0)).save(materialhistory);
     }
 
     @Test
@@ -299,7 +355,7 @@ public class MaterialhistoryResourceIntTest {
     public void deleteMaterialhistory() throws Exception {
         // Initialize the database
         materialhistoryRepository.saveAndFlush(materialhistory);
-        materialhistorySearchRepository.save(materialhistory);
+
         int databaseSizeBeforeDelete = materialhistoryRepository.findAll().size();
 
         // Get the materialhistory
@@ -307,13 +363,12 @@ public class MaterialhistoryResourceIntTest {
             .accept(TestUtil.APPLICATION_JSON_UTF8))
             .andExpect(status().isOk());
 
-        // Validate Elasticsearch is empty
-        boolean materialhistoryExistsInEs = materialhistorySearchRepository.exists(materialhistory.getId());
-        assertThat(materialhistoryExistsInEs).isFalse();
-
         // Validate the database is empty
         List<Materialhistory> materialhistoryList = materialhistoryRepository.findAll();
         assertThat(materialhistoryList).hasSize(databaseSizeBeforeDelete - 1);
+
+        // Validate the Materialhistory in Elasticsearch
+        verify(mockMaterialhistorySearchRepository, times(1)).deleteById(materialhistory.getId());
     }
 
     @Test
@@ -321,8 +376,8 @@ public class MaterialhistoryResourceIntTest {
     public void searchMaterialhistory() throws Exception {
         // Initialize the database
         materialhistoryRepository.saveAndFlush(materialhistory);
-        materialhistorySearchRepository.save(materialhistory);
-
+    when(mockMaterialhistorySearchRepository.search(queryStringQuery("id:" + materialhistory.getId()), PageRequest.of(0, 20)))
+        .thenReturn(new PageImpl<>(Collections.singletonList(materialhistory), PageRequest.of(0, 1), 1));
         // Search the materialhistory
         restMaterialhistoryMockMvc.perform(get("/api/_search/materialhistories?query=id:" + materialhistory.getId()))
             .andExpect(status().isOk())

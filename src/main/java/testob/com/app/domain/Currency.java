@@ -3,10 +3,11 @@ package testob.com.app.domain;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import org.hibernate.annotations.Cache;
 import org.hibernate.annotations.CacheConcurrencyStrategy;
-import org.springframework.data.elasticsearch.annotations.Document;
 
 import javax.persistence.*;
 import javax.validation.constraints.*;
+
+import org.springframework.data.elasticsearch.annotations.Document;
 import java.io.Serializable;
 import java.util.HashSet;
 import java.util.Set;
@@ -39,27 +40,22 @@ public class Currency implements Serializable {
     private String name;
 
     @OneToMany(mappedBy = "baseCurrency")
-    @JsonIgnore
     @Cache(usage = CacheConcurrencyStrategy.NONSTRICT_READ_WRITE)
     private Set<Company> companyBaseCurrencies = new HashSet<>();
 
     @OneToMany(mappedBy = "rateForCurrency")
-    @JsonIgnore
     @Cache(usage = CacheConcurrencyStrategy.NONSTRICT_READ_WRITE)
     private Set<Forexrates> currencyRates = new HashSet<>();
 
     @OneToMany(mappedBy = "buycurrency")
-    @JsonIgnore
     @Cache(usage = CacheConcurrencyStrategy.NONSTRICT_READ_WRITE)
     private Set<Material> materialBuyCurrencies = new HashSet<>();
 
     @OneToMany(mappedBy = "sellcurrency")
-    @JsonIgnore
     @Cache(usage = CacheConcurrencyStrategy.NONSTRICT_READ_WRITE)
     private Set<Material> materialSellCurrencies = new HashSet<>();
 
     @OneToMany(mappedBy = "buycurrencylot")
-    @JsonIgnore
     @Cache(usage = CacheConcurrencyStrategy.NONSTRICT_READ_WRITE)
     private Set<Lot> lotBuyCurrencies = new HashSet<>();
 

@@ -2,10 +2,10 @@ package testob.com.app.web.rest;
 
 import com.codahale.metrics.annotation.Timed;
 import testob.com.app.service.ThirdclassificationService;
+import testob.com.app.web.rest.errors.BadRequestAlertException;
 import testob.com.app.web.rest.util.HeaderUtil;
 import testob.com.app.web.rest.util.PaginationUtil;
 import testob.com.app.service.dto.ThirdclassificationDTO;
-import io.swagger.annotations.ApiParam;
 import io.github.jhipster.web.util.ResponseUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -55,7 +55,7 @@ public class ThirdclassificationResource {
     public ResponseEntity<ThirdclassificationDTO> createThirdclassification(@Valid @RequestBody ThirdclassificationDTO thirdclassificationDTO) throws URISyntaxException {
         log.debug("REST request to save Thirdclassification : {}", thirdclassificationDTO);
         if (thirdclassificationDTO.getId() != null) {
-            return ResponseEntity.badRequest().headers(HeaderUtil.createFailureAlert(ENTITY_NAME, "idexists", "A new thirdclassification cannot already have an ID")).body(null);
+            throw new BadRequestAlertException("A new thirdclassification cannot already have an ID", ENTITY_NAME, "idexists");
         }
         ThirdclassificationDTO result = thirdclassificationService.save(thirdclassificationDTO);
         return ResponseEntity.created(new URI("/api/thirdclassifications/" + result.getId()))
@@ -93,7 +93,7 @@ public class ThirdclassificationResource {
      */
     @GetMapping("/thirdclassifications")
     @Timed
-    public ResponseEntity<List<ThirdclassificationDTO>> getAllThirdclassifications(@ApiParam Pageable pageable) {
+    public ResponseEntity<List<ThirdclassificationDTO>> getAllThirdclassifications(Pageable pageable) {
         log.debug("REST request to get a page of Thirdclassifications");
         Page<ThirdclassificationDTO> page = thirdclassificationService.findAll(pageable);
         HttpHeaders headers = PaginationUtil.generatePaginationHttpHeaders(page, "/api/thirdclassifications");
@@ -110,8 +110,8 @@ public class ThirdclassificationResource {
     @Timed
     public ResponseEntity<ThirdclassificationDTO> getThirdclassification(@PathVariable Long id) {
         log.debug("REST request to get Thirdclassification : {}", id);
-        ThirdclassificationDTO thirdclassificationDTO = thirdclassificationService.findOne(id);
-        return ResponseUtil.wrapOrNotFound(Optional.ofNullable(thirdclassificationDTO));
+        Optional<ThirdclassificationDTO> thirdclassificationDTO = thirdclassificationService.findOne(id);
+        return ResponseUtil.wrapOrNotFound(thirdclassificationDTO);
     }
 
     /**
@@ -138,7 +138,7 @@ public class ThirdclassificationResource {
      */
     @GetMapping("/_search/thirdclassifications")
     @Timed
-    public ResponseEntity<List<ThirdclassificationDTO>> searchThirdclassifications(@RequestParam String query, @ApiParam Pageable pageable) {
+    public ResponseEntity<List<ThirdclassificationDTO>> searchThirdclassifications(@RequestParam String query, Pageable pageable) {
         log.debug("REST request to search for a page of Thirdclassifications for query {}", query);
         Page<ThirdclassificationDTO> page = thirdclassificationService.search(query, pageable);
         HttpHeaders headers = PaginationUtil.generateSearchPaginationHttpHeaders(query, page, "/api/_search/thirdclassifications");

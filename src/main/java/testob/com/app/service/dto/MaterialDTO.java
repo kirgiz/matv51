@@ -1,11 +1,8 @@
 package testob.com.app.service.dto;
 
-
 import java.time.LocalDate;
 import javax.validation.constraints.*;
 import java.io.Serializable;
-import java.util.HashSet;
-import java.util.Set;
 import java.util.Objects;
 
 /**
@@ -199,7 +196,7 @@ public class MaterialDTO implements Serializable {
         }
 
         MaterialDTO materialDTO = (MaterialDTO) o;
-        if(materialDTO.getId() == null || getId() == null) {
+        if (materialDTO.getId() == null || getId() == null) {
             return false;
         }
         return Objects.equals(getId(), materialDTO.getId());
@@ -218,6 +215,18 @@ public class MaterialDTO implements Serializable {
             ", description='" + getDescription() + "'" +
             ", creationDate='" + getCreationDate() + "'" +
             ", comments='" + getComments() + "'" +
+            ", materialTypeDef=" + getMaterialTypeDefId() +
+            ", materialTypeDef='" + getMaterialTypeDefName() + "'" +
+            ", buycurrency=" + getBuycurrencyId() +
+            ", buycurrency='" + getBuycurrencyISOCode() + "'" +
+            ", sellcurrency=" + getSellcurrencyId() +
+            ", sellcurrency='" + getSellcurrencyISOCode() + "'" +
+            ", lotIdentifier=" + getLotIdentifierId() +
+            ", lotIdentifier='" + getLotIdentifierCode() + "'" +
+            ", materialClassif=" + getMaterialClassifId() +
+            ", materialClassif='" + getMaterialClassifCode() + "'" +
+            ", materialTypeCat=" + getMaterialTypeCatId() +
+            ", materialTypeCat='" + getMaterialTypeCatName() + "'" +
             "}";
     }
 }

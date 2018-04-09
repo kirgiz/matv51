@@ -13,9 +13,12 @@ import testob.com.app.web.rest.errors.ExceptionTranslator;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.web.PageableHandlerMethodArgumentResolver;
 import org.springframework.http.MediaType;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
@@ -25,10 +28,15 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.persistence.EntityManager;
+import java.util.Collections;
 import java.util.List;
+import java.util.ArrayList;
 
+import static testob.com.app.web.rest.TestUtil.createFormattingConversionService;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.hamcrest.Matchers.hasItem;
+import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -53,14 +61,22 @@ public class MaterialclassificationResourceIntTest {
     @Autowired
     private MaterialclassificationRepository materialclassificationRepository;
 
+
+
     @Autowired
     private MaterialclassificationMapper materialclassificationMapper;
+    
 
     @Autowired
     private MaterialclassificationService materialclassificationService;
 
+    /**
+     * This repository is mocked in the testob.com.app.repository.search test package.
+     *
+     * @see testob.com.app.repository.search.MaterialclassificationSearchRepositoryMockConfiguration
+     */
     @Autowired
-    private MaterialclassificationSearchRepository materialclassificationSearchRepository;
+    private MaterialclassificationSearchRepository mockMaterialclassificationSearchRepository;
 
     @Autowired
     private MappingJackson2HttpMessageConverter jacksonMessageConverter;
@@ -85,6 +101,7 @@ public class MaterialclassificationResourceIntTest {
         this.restMaterialclassificationMockMvc = MockMvcBuilders.standaloneSetup(materialclassificationResource)
             .setCustomArgumentResolvers(pageableArgumentResolver)
             .setControllerAdvice(exceptionTranslator)
+            .setConversionService(createFormattingConversionService())
             .setMessageConverters(jacksonMessageConverter).build();
     }
 
@@ -104,7 +121,6 @@ public class MaterialclassificationResourceIntTest {
 
     @Before
     public void initTest() {
-        materialclassificationSearchRepository.deleteAll();
         materialclassification = createEntity(em);
     }
 
@@ -129,8 +145,7 @@ public class MaterialclassificationResourceIntTest {
         assertThat(testMaterialclassification.getComments()).isEqualTo(DEFAULT_COMMENTS);
 
         // Validate the Materialclassification in Elasticsearch
-        Materialclassification materialclassificationEs = materialclassificationSearchRepository.findOne(testMaterialclassification.getId());
-        assertThat(materialclassificationEs).isEqualToComparingFieldByField(testMaterialclassification);
+        verify(mockMaterialclassificationSearchRepository, times(1)).save(testMaterialclassification);
     }
 
     @Test
@@ -151,6 +166,9 @@ public class MaterialclassificationResourceIntTest {
         // Validate the Materialclassification in the database
         List<Materialclassification> materialclassificationList = materialclassificationRepository.findAll();
         assertThat(materialclassificationList).hasSize(databaseSizeBeforeCreate);
+
+        // Validate the Materialclassification in Elasticsearch
+        verify(mockMaterialclassificationSearchRepository, times(0)).save(materialclassification);
     }
 
     @Test
@@ -206,6 +224,7 @@ public class MaterialclassificationResourceIntTest {
             .andExpect(jsonPath("$.[*].name").value(hasItem(DEFAULT_NAME.toString())))
             .andExpect(jsonPath("$.[*].comments").value(hasItem(DEFAULT_COMMENTS.toString())));
     }
+    
 
     @Test
     @Transactional
@@ -236,11 +255,13 @@ public class MaterialclassificationResourceIntTest {
     public void updateMaterialclassification() throws Exception {
         // Initialize the database
         materialclassificationRepository.saveAndFlush(materialclassification);
-        materialclassificationSearchRepository.save(materialclassification);
+
         int databaseSizeBeforeUpdate = materialclassificationRepository.findAll().size();
 
         // Update the materialclassification
-        Materialclassification updatedMaterialclassification = materialclassificationRepository.findOne(materialclassification.getId());
+        Materialclassification updatedMaterialclassification = materialclassificationRepository.findById(materialclassification.getId()).get();
+        // Disconnect from session so that the updates on updatedMaterialclassification are not directly saved in db
+        em.detach(updatedMaterialclassification);
         updatedMaterialclassification
             .code(UPDATED_CODE)
             .name(UPDATED_NAME)
@@ -261,8 +282,7 @@ public class MaterialclassificationResourceIntTest {
         assertThat(testMaterialclassification.getComments()).isEqualTo(UPDATED_COMMENTS);
 
         // Validate the Materialclassification in Elasticsearch
-        Materialclassification materialclassificationEs = materialclassificationSearchRepository.findOne(testMaterialclassification.getId());
-        assertThat(materialclassificationEs).isEqualToComparingFieldByField(testMaterialclassification);
+        verify(mockMaterialclassificationSearchRepository, times(1)).save(testMaterialclassification);
     }
 
     @Test
@@ -282,6 +302,9 @@ public class MaterialclassificationResourceIntTest {
         // Validate the Materialclassification in the database
         List<Materialclassification> materialclassificationList = materialclassificationRepository.findAll();
         assertThat(materialclassificationList).hasSize(databaseSizeBeforeUpdate + 1);
+
+        // Validate the Materialclassification in Elasticsearch
+        verify(mockMaterialclassificationSearchRepository, times(0)).save(materialclassification);
     }
 
     @Test
@@ -289,7 +312,7 @@ public class MaterialclassificationResourceIntTest {
     public void deleteMaterialclassification() throws Exception {
         // Initialize the database
         materialclassificationRepository.saveAndFlush(materialclassification);
-        materialclassificationSearchRepository.save(materialclassification);
+
         int databaseSizeBeforeDelete = materialclassificationRepository.findAll().size();
 
         // Get the materialclassification
@@ -297,13 +320,12 @@ public class MaterialclassificationResourceIntTest {
             .accept(TestUtil.APPLICATION_JSON_UTF8))
             .andExpect(status().isOk());
 
-        // Validate Elasticsearch is empty
-        boolean materialclassificationExistsInEs = materialclassificationSearchRepository.exists(materialclassification.getId());
-        assertThat(materialclassificationExistsInEs).isFalse();
-
         // Validate the database is empty
         List<Materialclassification> materialclassificationList = materialclassificationRepository.findAll();
         assertThat(materialclassificationList).hasSize(databaseSizeBeforeDelete - 1);
+
+        // Validate the Materialclassification in Elasticsearch
+        verify(mockMaterialclassificationSearchRepository, times(1)).deleteById(materialclassification.getId());
     }
 
     @Test
@@ -311,8 +333,8 @@ public class MaterialclassificationResourceIntTest {
     public void searchMaterialclassification() throws Exception {
         // Initialize the database
         materialclassificationRepository.saveAndFlush(materialclassification);
-        materialclassificationSearchRepository.save(materialclassification);
-
+    when(mockMaterialclassificationSearchRepository.search(queryStringQuery("id:" + materialclassification.getId()), PageRequest.of(0, 20)))
+        .thenReturn(new PageImpl<>(Collections.singletonList(materialclassification), PageRequest.of(0, 1), 1));
         // Search the materialclassification
         restMaterialclassificationMockMvc.perform(get("/api/_search/materialclassifications?query=id:" + materialclassification.getId()))
             .andExpect(status().isOk())

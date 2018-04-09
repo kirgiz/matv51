@@ -14,6 +14,7 @@ import testob.com.app.web.rest.errors.ExceptionTranslator;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -28,10 +29,15 @@ import org.springframework.transaction.annotation.Transactional;
 import javax.persistence.EntityManager;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.Collections;
 import java.util.List;
+import java.util.ArrayList;
 
+import static testob.com.app.web.rest.TestUtil.createFormattingConversionService;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.hamcrest.Matchers.hasItem;
+import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -53,14 +59,22 @@ public class ForexratesResourceIntTest {
     @Autowired
     private ForexratesRepository forexratesRepository;
 
+
+
     @Autowired
     private ForexratesMapper forexratesMapper;
+    
 
     @Autowired
     private ForexratesService forexratesService;
 
+    /**
+     * This repository is mocked in the testob.com.app.repository.search test package.
+     *
+     * @see testob.com.app.repository.search.ForexratesSearchRepositoryMockConfiguration
+     */
     @Autowired
-    private ForexratesSearchRepository forexratesSearchRepository;
+    private ForexratesSearchRepository mockForexratesSearchRepository;
 
     @Autowired
     private MappingJackson2HttpMessageConverter jacksonMessageConverter;
@@ -85,6 +99,7 @@ public class ForexratesResourceIntTest {
         this.restForexratesMockMvc = MockMvcBuilders.standaloneSetup(forexratesResource)
             .setCustomArgumentResolvers(pageableArgumentResolver)
             .setControllerAdvice(exceptionTranslator)
+            .setConversionService(createFormattingConversionService())
             .setMessageConverters(jacksonMessageConverter).build();
     }
 
@@ -108,7 +123,6 @@ public class ForexratesResourceIntTest {
 
     @Before
     public void initTest() {
-        forexratesSearchRepository.deleteAll();
         forexrates = createEntity(em);
     }
 
@@ -132,8 +146,7 @@ public class ForexratesResourceIntTest {
         assertThat(testForexrates.getStraighRate()).isEqualTo(DEFAULT_STRAIGH_RATE);
 
         // Validate the Forexrates in Elasticsearch
-        Forexrates forexratesEs = forexratesSearchRepository.findOne(testForexrates.getId());
-        assertThat(forexratesEs).isEqualToComparingFieldByField(testForexrates);
+        verify(mockForexratesSearchRepository, times(1)).save(testForexrates);
     }
 
     @Test
@@ -154,6 +167,9 @@ public class ForexratesResourceIntTest {
         // Validate the Forexrates in the database
         List<Forexrates> forexratesList = forexratesRepository.findAll();
         assertThat(forexratesList).hasSize(databaseSizeBeforeCreate);
+
+        // Validate the Forexrates in Elasticsearch
+        verify(mockForexratesSearchRepository, times(0)).save(forexrates);
     }
 
     @Test
@@ -208,6 +224,7 @@ public class ForexratesResourceIntTest {
             .andExpect(jsonPath("$.[*].rateDate").value(hasItem(DEFAULT_RATE_DATE.toString())))
             .andExpect(jsonPath("$.[*].straighRate").value(hasItem(DEFAULT_STRAIGH_RATE.doubleValue())));
     }
+    
 
     @Test
     @Transactional
@@ -237,11 +254,13 @@ public class ForexratesResourceIntTest {
     public void updateForexrates() throws Exception {
         // Initialize the database
         forexratesRepository.saveAndFlush(forexrates);
-        forexratesSearchRepository.save(forexrates);
+
         int databaseSizeBeforeUpdate = forexratesRepository.findAll().size();
 
         // Update the forexrates
-        Forexrates updatedForexrates = forexratesRepository.findOne(forexrates.getId());
+        Forexrates updatedForexrates = forexratesRepository.findById(forexrates.getId()).get();
+        // Disconnect from session so that the updates on updatedForexrates are not directly saved in db
+        em.detach(updatedForexrates);
         updatedForexrates
             .rateDate(UPDATED_RATE_DATE)
             .straighRate(UPDATED_STRAIGH_RATE);
@@ -260,8 +279,7 @@ public class ForexratesResourceIntTest {
         assertThat(testForexrates.getStraighRate()).isEqualTo(UPDATED_STRAIGH_RATE);
 
         // Validate the Forexrates in Elasticsearch
-        Forexrates forexratesEs = forexratesSearchRepository.findOne(testForexrates.getId());
-        assertThat(forexratesEs).isEqualToComparingFieldByField(testForexrates);
+        verify(mockForexratesSearchRepository, times(1)).save(testForexrates);
     }
 
     @Test
@@ -281,6 +299,9 @@ public class ForexratesResourceIntTest {
         // Validate the Forexrates in the database
         List<Forexrates> forexratesList = forexratesRepository.findAll();
         assertThat(forexratesList).hasSize(databaseSizeBeforeUpdate + 1);
+
+        // Validate the Forexrates in Elasticsearch
+        verify(mockForexratesSearchRepository, times(0)).save(forexrates);
     }
 
     @Test
@@ -288,7 +309,7 @@ public class ForexratesResourceIntTest {
     public void deleteForexrates() throws Exception {
         // Initialize the database
         forexratesRepository.saveAndFlush(forexrates);
-        forexratesSearchRepository.save(forexrates);
+
         int databaseSizeBeforeDelete = forexratesRepository.findAll().size();
 
         // Get the forexrates
@@ -296,13 +317,12 @@ public class ForexratesResourceIntTest {
             .accept(TestUtil.APPLICATION_JSON_UTF8))
             .andExpect(status().isOk());
 
-        // Validate Elasticsearch is empty
-        boolean forexratesExistsInEs = forexratesSearchRepository.exists(forexrates.getId());
-        assertThat(forexratesExistsInEs).isFalse();
-
         // Validate the database is empty
         List<Forexrates> forexratesList = forexratesRepository.findAll();
         assertThat(forexratesList).hasSize(databaseSizeBeforeDelete - 1);
+
+        // Validate the Forexrates in Elasticsearch
+        verify(mockForexratesSearchRepository, times(1)).deleteById(forexrates.getId());
     }
 
     @Test
@@ -310,8 +330,8 @@ public class ForexratesResourceIntTest {
     public void searchForexrates() throws Exception {
         // Initialize the database
         forexratesRepository.saveAndFlush(forexrates);
-        forexratesSearchRepository.save(forexrates);
-
+    when(mockForexratesSearchRepository.search(queryStringQuery("id:" + forexrates.getId())))
+        .thenReturn(Collections.singletonList(forexrates));
         // Search the forexrates
         restForexratesMockMvc.perform(get("/api/_search/forexrates?query=id:" + forexrates.getId()))
             .andExpect(status().isOk())

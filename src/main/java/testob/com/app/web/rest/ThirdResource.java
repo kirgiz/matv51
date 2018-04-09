@@ -2,6 +2,7 @@ package testob.com.app.web.rest;
 
 import com.codahale.metrics.annotation.Timed;
 import testob.com.app.service.ThirdService;
+import testob.com.app.web.rest.errors.BadRequestAlertException;
 import testob.com.app.web.rest.util.HeaderUtil;
 import testob.com.app.service.dto.ThirdDTO;
 import io.github.jhipster.web.util.ResponseUtil;
@@ -49,7 +50,7 @@ public class ThirdResource {
     public ResponseEntity<ThirdDTO> createThird(@Valid @RequestBody ThirdDTO thirdDTO) throws URISyntaxException {
         log.debug("REST request to save Third : {}", thirdDTO);
         if (thirdDTO.getId() != null) {
-            return ResponseEntity.badRequest().headers(HeaderUtil.createFailureAlert(ENTITY_NAME, "idexists", "A new third cannot already have an ID")).body(null);
+            throw new BadRequestAlertException("A new third cannot already have an ID", ENTITY_NAME, "idexists");
         }
         ThirdDTO result = thirdService.save(thirdDTO);
         return ResponseEntity.created(new URI("/api/thirds/" + result.getId()))
@@ -82,14 +83,15 @@ public class ThirdResource {
     /**
      * GET  /thirds : get all the thirds.
      *
+     * @param eagerload flag to eager load entities from relationships (This is applicable for many-to-many)
      * @return the ResponseEntity with status 200 (OK) and the list of thirds in body
      */
     @GetMapping("/thirds")
     @Timed
-    public List<ThirdDTO> getAllThirds() {
+    public List<ThirdDTO> getAllThirds(@RequestParam(required = false, defaultValue = "false") boolean eagerload) {
         log.debug("REST request to get all Thirds");
         return thirdService.findAll();
-        }
+    }
 
     /**
      * GET  /thirds/:id : get the "id" third.
@@ -101,8 +103,8 @@ public class ThirdResource {
     @Timed
     public ResponseEntity<ThirdDTO> getThird(@PathVariable Long id) {
         log.debug("REST request to get Third : {}", id);
-        ThirdDTO thirdDTO = thirdService.findOne(id);
-        return ResponseUtil.wrapOrNotFound(Optional.ofNullable(thirdDTO));
+        Optional<ThirdDTO> thirdDTO = thirdService.findOne(id);
+        return ResponseUtil.wrapOrNotFound(thirdDTO);
     }
 
     /**

@@ -1,11 +1,13 @@
 package testob.com.app.domain;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import org.hibernate.annotations.Cache;
 import org.hibernate.annotations.CacheConcurrencyStrategy;
-import org.springframework.data.elasticsearch.annotations.Document;
 
 import javax.persistence.*;
 import javax.validation.constraints.*;
+
+import org.springframework.data.elasticsearch.annotations.Document;
 import java.io.Serializable;
 import java.time.LocalDate;
 import java.util.Objects;
@@ -38,10 +40,12 @@ public class Dashboard implements Serializable {
 
     @ManyToOne(optional = false)
     @NotNull
+    @JsonIgnoreProperties("warehouseOuts")
     private Third warehouseOutg;
 
     @ManyToOne(optional = false)
     @NotNull
+    @JsonIgnoreProperties("materialCategoryDashboards")
     private Materialclassification materialTypeDefDashboard;
 
     // jhipster-needle-entity-add-field - JHipster will add fields here, do not remove
@@ -144,8 +148,8 @@ public class Dashboard implements Serializable {
         return "Dashboard{" +
             "id=" + getId() +
             ", transferDate='" + getTransferDate() + "'" +
-            ", profitAndLoss='" + getProfitAndLoss() + "'" +
-            ", numberOfItems='" + getNumberOfItems() + "'" +
+            ", profitAndLoss=" + getProfitAndLoss() +
+            ", numberOfItems=" + getNumberOfItems() +
             "}";
     }
 }

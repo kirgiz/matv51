@@ -9,10 +9,12 @@ import org.mapstruct.*;
  * Mapper for the entity Civility and its DTO CivilityDTO.
  */
 @Mapper(componentModel = "spring", uses = {})
-public interface CivilityMapper extends EntityMapper <CivilityDTO, Civility> {
-    
+public interface CivilityMapper extends EntityMapper<CivilityDTO, Civility> {
+
+
     @Mapping(target = "thirdCivilities", ignore = true)
-    Civility toEntity(CivilityDTO civilityDTO); 
+    Civility toEntity(CivilityDTO civilityDTO);
+
     default Civility fromId(Long id) {
         if (id == null) {
             return null;

@@ -2,10 +2,10 @@ package testob.com.app.web.rest;
 
 import com.codahale.metrics.annotation.Timed;
 import testob.com.app.service.CompanyService;
+import testob.com.app.web.rest.errors.BadRequestAlertException;
 import testob.com.app.web.rest.util.HeaderUtil;
 import testob.com.app.web.rest.util.PaginationUtil;
 import testob.com.app.service.dto.CompanyDTO;
-import io.swagger.annotations.ApiParam;
 import io.github.jhipster.web.util.ResponseUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -55,7 +55,7 @@ public class CompanyResource {
     public ResponseEntity<CompanyDTO> createCompany(@Valid @RequestBody CompanyDTO companyDTO) throws URISyntaxException {
         log.debug("REST request to save Company : {}", companyDTO);
         if (companyDTO.getId() != null) {
-            return ResponseEntity.badRequest().headers(HeaderUtil.createFailureAlert(ENTITY_NAME, "idexists", "A new company cannot already have an ID")).body(null);
+            throw new BadRequestAlertException("A new company cannot already have an ID", ENTITY_NAME, "idexists");
         }
         CompanyDTO result = companyService.save(companyDTO);
         return ResponseEntity.created(new URI("/api/companies/" + result.getId()))
@@ -93,7 +93,7 @@ public class CompanyResource {
      */
     @GetMapping("/companies")
     @Timed
-    public ResponseEntity<List<CompanyDTO>> getAllCompanies(@ApiParam Pageable pageable) {
+    public ResponseEntity<List<CompanyDTO>> getAllCompanies(Pageable pageable) {
         log.debug("REST request to get a page of Companies");
         Page<CompanyDTO> page = companyService.findAll(pageable);
         HttpHeaders headers = PaginationUtil.generatePaginationHttpHeaders(page, "/api/companies");
@@ -110,8 +110,8 @@ public class CompanyResource {
     @Timed
     public ResponseEntity<CompanyDTO> getCompany(@PathVariable Long id) {
         log.debug("REST request to get Company : {}", id);
-        CompanyDTO companyDTO = companyService.findOne(id);
-        return ResponseUtil.wrapOrNotFound(Optional.ofNullable(companyDTO));
+        Optional<CompanyDTO> companyDTO = companyService.findOne(id);
+        return ResponseUtil.wrapOrNotFound(companyDTO);
     }
 
     /**
@@ -138,7 +138,7 @@ public class CompanyResource {
      */
     @GetMapping("/_search/companies")
     @Timed
-    public ResponseEntity<List<CompanyDTO>> searchCompanies(@RequestParam String query, @ApiParam Pageable pageable) {
+    public ResponseEntity<List<CompanyDTO>> searchCompanies(@RequestParam String query, Pageable pageable) {
         log.debug("REST request to search for a page of Companies for query {}", query);
         Page<CompanyDTO> page = companyService.search(query, pageable);
         HttpHeaders headers = PaginationUtil.generateSearchPaginationHttpHeaders(query, page, "/api/_search/companies");

@@ -2,10 +2,10 @@ package testob.com.app.web.rest;
 
 import com.codahale.metrics.annotation.Timed;
 import testob.com.app.service.CountryService;
+import testob.com.app.web.rest.errors.BadRequestAlertException;
 import testob.com.app.web.rest.util.HeaderUtil;
 import testob.com.app.web.rest.util.PaginationUtil;
 import testob.com.app.service.dto.CountryDTO;
-import io.swagger.annotations.ApiParam;
 import io.github.jhipster.web.util.ResponseUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -55,7 +55,7 @@ public class CountryResource {
     public ResponseEntity<CountryDTO> createCountry(@Valid @RequestBody CountryDTO countryDTO) throws URISyntaxException {
         log.debug("REST request to save Country : {}", countryDTO);
         if (countryDTO.getId() != null) {
-            return ResponseEntity.badRequest().headers(HeaderUtil.createFailureAlert(ENTITY_NAME, "idexists", "A new country cannot already have an ID")).body(null);
+            throw new BadRequestAlertException("A new country cannot already have an ID", ENTITY_NAME, "idexists");
         }
         CountryDTO result = countryService.save(countryDTO);
         return ResponseEntity.created(new URI("/api/countries/" + result.getId()))
@@ -93,7 +93,7 @@ public class CountryResource {
      */
     @GetMapping("/countries")
     @Timed
-    public ResponseEntity<List<CountryDTO>> getAllCountries(@ApiParam Pageable pageable) {
+    public ResponseEntity<List<CountryDTO>> getAllCountries(Pageable pageable) {
         log.debug("REST request to get a page of Countries");
         Page<CountryDTO> page = countryService.findAll(pageable);
         HttpHeaders headers = PaginationUtil.generatePaginationHttpHeaders(page, "/api/countries");
@@ -110,8 +110,8 @@ public class CountryResource {
     @Timed
     public ResponseEntity<CountryDTO> getCountry(@PathVariable Long id) {
         log.debug("REST request to get Country : {}", id);
-        CountryDTO countryDTO = countryService.findOne(id);
-        return ResponseUtil.wrapOrNotFound(Optional.ofNullable(countryDTO));
+        Optional<CountryDTO> countryDTO = countryService.findOne(id);
+        return ResponseUtil.wrapOrNotFound(countryDTO);
     }
 
     /**
@@ -138,7 +138,7 @@ public class CountryResource {
      */
     @GetMapping("/_search/countries")
     @Timed
-    public ResponseEntity<List<CountryDTO>> searchCountries(@RequestParam String query, @ApiParam Pageable pageable) {
+    public ResponseEntity<List<CountryDTO>> searchCountries(@RequestParam String query, Pageable pageable) {
         log.debug("REST request to search for a page of Countries for query {}", query);
         Page<CountryDTO> page = countryService.search(query, pageable);
         HttpHeaders headers = PaginationUtil.generateSearchPaginationHttpHeaders(query, page, "/api/_search/countries");

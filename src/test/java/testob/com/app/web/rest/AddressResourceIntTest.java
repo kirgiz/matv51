@@ -14,6 +14,7 @@ import testob.com.app.web.rest.errors.ExceptionTranslator;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -28,10 +29,15 @@ import org.springframework.transaction.annotation.Transactional;
 import javax.persistence.EntityManager;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.Collections;
 import java.util.List;
+import java.util.ArrayList;
 
+import static testob.com.app.web.rest.TestUtil.createFormattingConversionService;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.hamcrest.Matchers.hasItem;
+import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -77,14 +83,22 @@ public class AddressResourceIntTest {
     @Autowired
     private AddressRepository addressRepository;
 
+
+
     @Autowired
     private AddressMapper addressMapper;
+    
 
     @Autowired
     private AddressService addressService;
 
+    /**
+     * This repository is mocked in the testob.com.app.repository.search test package.
+     *
+     * @see testob.com.app.repository.search.AddressSearchRepositoryMockConfiguration
+     */
     @Autowired
-    private AddressSearchRepository addressSearchRepository;
+    private AddressSearchRepository mockAddressSearchRepository;
 
     @Autowired
     private MappingJackson2HttpMessageConverter jacksonMessageConverter;
@@ -109,6 +123,7 @@ public class AddressResourceIntTest {
         this.restAddressMockMvc = MockMvcBuilders.standaloneSetup(addressResource)
             .setCustomArgumentResolvers(pageableArgumentResolver)
             .setControllerAdvice(exceptionTranslator)
+            .setConversionService(createFormattingConversionService())
             .setMessageConverters(jacksonMessageConverter).build();
     }
 
@@ -140,7 +155,6 @@ public class AddressResourceIntTest {
 
     @Before
     public void initTest() {
-        addressSearchRepository.deleteAll();
         address = createEntity(em);
     }
 
@@ -172,8 +186,7 @@ public class AddressResourceIntTest {
         assertThat(testAddress.getComments()).isEqualTo(DEFAULT_COMMENTS);
 
         // Validate the Address in Elasticsearch
-        Address addressEs = addressSearchRepository.findOne(testAddress.getId());
-        assertThat(addressEs).isEqualToComparingFieldByField(testAddress);
+        verify(mockAddressSearchRepository, times(1)).save(testAddress);
     }
 
     @Test
@@ -194,6 +207,9 @@ public class AddressResourceIntTest {
         // Validate the Address in the database
         List<Address> addressList = addressRepository.findAll();
         assertThat(addressList).hasSize(databaseSizeBeforeCreate);
+
+        // Validate the Address in Elasticsearch
+        verify(mockAddressSearchRepository, times(0)).save(address);
     }
 
     @Test
@@ -237,6 +253,7 @@ public class AddressResourceIntTest {
             .andExpect(jsonPath("$.[*].validTo").value(hasItem(DEFAULT_VALID_TO.toString())))
             .andExpect(jsonPath("$.[*].comments").value(hasItem(DEFAULT_COMMENTS.toString())));
     }
+    
 
     @Test
     @Transactional
@@ -274,11 +291,13 @@ public class AddressResourceIntTest {
     public void updateAddress() throws Exception {
         // Initialize the database
         addressRepository.saveAndFlush(address);
-        addressSearchRepository.save(address);
+
         int databaseSizeBeforeUpdate = addressRepository.findAll().size();
 
         // Update the address
-        Address updatedAddress = addressRepository.findOne(address.getId());
+        Address updatedAddress = addressRepository.findById(address.getId()).get();
+        // Disconnect from session so that the updates on updatedAddress are not directly saved in db
+        em.detach(updatedAddress);
         updatedAddress
             .description(UPDATED_DESCRIPTION)
             .line1(UPDATED_LINE_1)
@@ -313,8 +332,7 @@ public class AddressResourceIntTest {
         assertThat(testAddress.getComments()).isEqualTo(UPDATED_COMMENTS);
 
         // Validate the Address in Elasticsearch
-        Address addressEs = addressSearchRepository.findOne(testAddress.getId());
-        assertThat(addressEs).isEqualToComparingFieldByField(testAddress);
+        verify(mockAddressSearchRepository, times(1)).save(testAddress);
     }
 
     @Test
@@ -334,6 +352,9 @@ public class AddressResourceIntTest {
         // Validate the Address in the database
         List<Address> addressList = addressRepository.findAll();
         assertThat(addressList).hasSize(databaseSizeBeforeUpdate + 1);
+
+        // Validate the Address in Elasticsearch
+        verify(mockAddressSearchRepository, times(0)).save(address);
     }
 
     @Test
@@ -341,7 +362,7 @@ public class AddressResourceIntTest {
     public void deleteAddress() throws Exception {
         // Initialize the database
         addressRepository.saveAndFlush(address);
-        addressSearchRepository.save(address);
+
         int databaseSizeBeforeDelete = addressRepository.findAll().size();
 
         // Get the address
@@ -349,13 +370,12 @@ public class AddressResourceIntTest {
             .accept(TestUtil.APPLICATION_JSON_UTF8))
             .andExpect(status().isOk());
 
-        // Validate Elasticsearch is empty
-        boolean addressExistsInEs = addressSearchRepository.exists(address.getId());
-        assertThat(addressExistsInEs).isFalse();
-
         // Validate the database is empty
         List<Address> addressList = addressRepository.findAll();
         assertThat(addressList).hasSize(databaseSizeBeforeDelete - 1);
+
+        // Validate the Address in Elasticsearch
+        verify(mockAddressSearchRepository, times(1)).deleteById(address.getId());
     }
 
     @Test
@@ -363,8 +383,8 @@ public class AddressResourceIntTest {
     public void searchAddress() throws Exception {
         // Initialize the database
         addressRepository.saveAndFlush(address);
-        addressSearchRepository.save(address);
-
+    when(mockAddressSearchRepository.search(queryStringQuery("id:" + address.getId())))
+        .thenReturn(Collections.singletonList(address));
         // Search the address
         restAddressMockMvc.perform(get("/api/_search/addresses?query=id:" + address.getId()))
             .andExpect(status().isOk())

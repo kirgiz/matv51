@@ -2,6 +2,7 @@ package testob.com.app.web.rest;
 
 import com.codahale.metrics.annotation.Timed;
 import testob.com.app.service.CivilityService;
+import testob.com.app.web.rest.errors.BadRequestAlertException;
 import testob.com.app.web.rest.util.HeaderUtil;
 import testob.com.app.service.dto.CivilityDTO;
 import io.github.jhipster.web.util.ResponseUtil;
@@ -49,7 +50,7 @@ public class CivilityResource {
     public ResponseEntity<CivilityDTO> createCivility(@Valid @RequestBody CivilityDTO civilityDTO) throws URISyntaxException {
         log.debug("REST request to save Civility : {}", civilityDTO);
         if (civilityDTO.getId() != null) {
-            return ResponseEntity.badRequest().headers(HeaderUtil.createFailureAlert(ENTITY_NAME, "idexists", "A new civility cannot already have an ID")).body(null);
+            throw new BadRequestAlertException("A new civility cannot already have an ID", ENTITY_NAME, "idexists");
         }
         CivilityDTO result = civilityService.save(civilityDTO);
         return ResponseEntity.created(new URI("/api/civilities/" + result.getId()))
@@ -89,7 +90,7 @@ public class CivilityResource {
     public List<CivilityDTO> getAllCivilities() {
         log.debug("REST request to get all Civilities");
         return civilityService.findAll();
-        }
+    }
 
     /**
      * GET  /civilities/:id : get the "id" civility.
@@ -101,8 +102,8 @@ public class CivilityResource {
     @Timed
     public ResponseEntity<CivilityDTO> getCivility(@PathVariable Long id) {
         log.debug("REST request to get Civility : {}", id);
-        CivilityDTO civilityDTO = civilityService.findOne(id);
-        return ResponseUtil.wrapOrNotFound(Optional.ofNullable(civilityDTO));
+        Optional<CivilityDTO> civilityDTO = civilityService.findOne(id);
+        return ResponseUtil.wrapOrNotFound(civilityDTO);
     }
 
     /**

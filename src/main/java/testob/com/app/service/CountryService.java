@@ -7,10 +7,13 @@ import testob.com.app.service.dto.CountryDTO;
 import testob.com.app.service.mapper.CountryMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Optional;
 
 
 import static org.elasticsearch.index.query.QueryBuilders.*;
@@ -52,10 +55,10 @@ public class CountryService {
     }
 
     /**
-     *  Get all the countries.
+     * Get all the countries.
      *
-     *  @param pageable the pagination information
-     *  @return the list of entities
+     * @param pageable the pagination information
+     * @return the list of entities
      */
     @Transactional(readOnly = true)
     public Page<CountryDTO> findAll(Pageable pageable) {
@@ -64,41 +67,42 @@ public class CountryService {
             .map(countryMapper::toDto);
     }
 
+
     /**
-     *  Get one country by id.
+     * Get one country by id.
      *
-     *  @param id the id of the entity
-     *  @return the entity
+     * @param id the id of the entity
+     * @return the entity
      */
     @Transactional(readOnly = true)
-    public CountryDTO findOne(Long id) {
+    public Optional<CountryDTO> findOne(Long id) {
         log.debug("Request to get Country : {}", id);
-        Country country = countryRepository.findOne(id);
-        return countryMapper.toDto(country);
+        return countryRepository.findById(id)
+            .map(countryMapper::toDto);
     }
 
     /**
-     *  Delete the  country by id.
+     * Delete the country by id.
      *
-     *  @param id the id of the entity
+     * @param id the id of the entity
      */
     public void delete(Long id) {
         log.debug("Request to delete Country : {}", id);
-        countryRepository.delete(id);
-        countrySearchRepository.delete(id);
+        countryRepository.deleteById(id);
+        countrySearchRepository.deleteById(id);
     }
 
     /**
      * Search for the country corresponding to the query.
      *
-     *  @param query the query of the search
-     *  @param pageable the pagination information
-     *  @return the list of entities
+     * @param query the query of the search
+     * @param pageable the pagination information
+     * @return the list of entities
      */
     @Transactional(readOnly = true)
     public Page<CountryDTO> search(String query, Pageable pageable) {
         log.debug("Request to search for a page of Countries for query {}", query);
-        Page<Country> result = countrySearchRepository.search(queryStringQuery(query), pageable);
-        return result.map(countryMapper::toDto);
+        return countrySearchRepository.search(queryStringQuery(query), pageable)
+            .map(countryMapper::toDto);
     }
 }

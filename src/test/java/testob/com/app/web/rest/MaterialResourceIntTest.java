@@ -19,9 +19,12 @@ import testob.com.app.web.rest.errors.ExceptionTranslator;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.web.PageableHandlerMethodArgumentResolver;
 import org.springframework.http.MediaType;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
@@ -33,10 +36,15 @@ import org.springframework.transaction.annotation.Transactional;
 import javax.persistence.EntityManager;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.Collections;
 import java.util.List;
+import java.util.ArrayList;
 
+import static testob.com.app.web.rest.TestUtil.createFormattingConversionService;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.hamcrest.Matchers.hasItem;
+import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -64,14 +72,22 @@ public class MaterialResourceIntTest {
     @Autowired
     private MaterialRepository materialRepository;
 
+
+
     @Autowired
     private MaterialMapper materialMapper;
+    
 
     @Autowired
     private MaterialService materialService;
 
+    /**
+     * This repository is mocked in the testob.com.app.repository.search test package.
+     *
+     * @see testob.com.app.repository.search.MaterialSearchRepositoryMockConfiguration
+     */
     @Autowired
-    private MaterialSearchRepository materialSearchRepository;
+    private MaterialSearchRepository mockMaterialSearchRepository;
 
     @Autowired
     private MappingJackson2HttpMessageConverter jacksonMessageConverter;
@@ -96,6 +112,7 @@ public class MaterialResourceIntTest {
         this.restMaterialMockMvc = MockMvcBuilders.standaloneSetup(materialResource)
             .setCustomArgumentResolvers(pageableArgumentResolver)
             .setControllerAdvice(exceptionTranslator)
+            .setConversionService(createFormattingConversionService())
             .setMessageConverters(jacksonMessageConverter).build();
     }
 
@@ -146,7 +163,6 @@ public class MaterialResourceIntTest {
 
     @Before
     public void initTest() {
-        materialSearchRepository.deleteAll();
         material = createEntity(em);
     }
 
@@ -172,8 +188,7 @@ public class MaterialResourceIntTest {
         assertThat(testMaterial.getComments()).isEqualTo(DEFAULT_COMMENTS);
 
         // Validate the Material in Elasticsearch
-        Material materialEs = materialSearchRepository.findOne(testMaterial.getId());
-        assertThat(materialEs).isEqualToComparingFieldByField(testMaterial);
+        verify(mockMaterialSearchRepository, times(1)).save(testMaterial);
     }
 
     @Test
@@ -194,6 +209,9 @@ public class MaterialResourceIntTest {
         // Validate the Material in the database
         List<Material> materialList = materialRepository.findAll();
         assertThat(materialList).hasSize(databaseSizeBeforeCreate);
+
+        // Validate the Material in Elasticsearch
+        verify(mockMaterialSearchRepository, times(0)).save(material);
     }
 
     @Test
@@ -269,6 +287,7 @@ public class MaterialResourceIntTest {
             .andExpect(jsonPath("$.[*].creationDate").value(hasItem(DEFAULT_CREATION_DATE.toString())))
             .andExpect(jsonPath("$.[*].comments").value(hasItem(DEFAULT_COMMENTS.toString())));
     }
+    
 
     @Test
     @Transactional
@@ -300,11 +319,13 @@ public class MaterialResourceIntTest {
     public void updateMaterial() throws Exception {
         // Initialize the database
         materialRepository.saveAndFlush(material);
-        materialSearchRepository.save(material);
+
         int databaseSizeBeforeUpdate = materialRepository.findAll().size();
 
         // Update the material
-        Material updatedMaterial = materialRepository.findOne(material.getId());
+        Material updatedMaterial = materialRepository.findById(material.getId()).get();
+        // Disconnect from session so that the updates on updatedMaterial are not directly saved in db
+        em.detach(updatedMaterial);
         updatedMaterial
             .code(UPDATED_CODE)
             .description(UPDATED_DESCRIPTION)
@@ -327,8 +348,7 @@ public class MaterialResourceIntTest {
         assertThat(testMaterial.getComments()).isEqualTo(UPDATED_COMMENTS);
 
         // Validate the Material in Elasticsearch
-        Material materialEs = materialSearchRepository.findOne(testMaterial.getId());
-        assertThat(materialEs).isEqualToComparingFieldByField(testMaterial);
+        verify(mockMaterialSearchRepository, times(1)).save(testMaterial);
     }
 
     @Test
@@ -348,6 +368,9 @@ public class MaterialResourceIntTest {
         // Validate the Material in the database
         List<Material> materialList = materialRepository.findAll();
         assertThat(materialList).hasSize(databaseSizeBeforeUpdate + 1);
+
+        // Validate the Material in Elasticsearch
+        verify(mockMaterialSearchRepository, times(0)).save(material);
     }
 
     @Test
@@ -355,7 +378,7 @@ public class MaterialResourceIntTest {
     public void deleteMaterial() throws Exception {
         // Initialize the database
         materialRepository.saveAndFlush(material);
-        materialSearchRepository.save(material);
+
         int databaseSizeBeforeDelete = materialRepository.findAll().size();
 
         // Get the material
@@ -363,13 +386,12 @@ public class MaterialResourceIntTest {
             .accept(TestUtil.APPLICATION_JSON_UTF8))
             .andExpect(status().isOk());
 
-        // Validate Elasticsearch is empty
-        boolean materialExistsInEs = materialSearchRepository.exists(material.getId());
-        assertThat(materialExistsInEs).isFalse();
-
         // Validate the database is empty
         List<Material> materialList = materialRepository.findAll();
         assertThat(materialList).hasSize(databaseSizeBeforeDelete - 1);
+
+        // Validate the Material in Elasticsearch
+        verify(mockMaterialSearchRepository, times(1)).deleteById(material.getId());
     }
 
     @Test
@@ -377,8 +399,8 @@ public class MaterialResourceIntTest {
     public void searchMaterial() throws Exception {
         // Initialize the database
         materialRepository.saveAndFlush(material);
-        materialSearchRepository.save(material);
-
+    when(mockMaterialSearchRepository.search(queryStringQuery("id:" + material.getId()), PageRequest.of(0, 20)))
+        .thenReturn(new PageImpl<>(Collections.singletonList(material), PageRequest.of(0, 1), 1));
         // Search the material
         restMaterialMockMvc.perform(get("/api/_search/materials?query=id:" + material.getId()))
             .andExpect(status().isOk())

@@ -13,9 +13,12 @@ import testob.com.app.web.rest.errors.ExceptionTranslator;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.data.web.PageableHandlerMethodArgumentResolver;
 import org.springframework.http.MediaType;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
@@ -25,10 +28,15 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.persistence.EntityManager;
+import java.util.Collections;
 import java.util.List;
+import java.util.ArrayList;
 
+import static testob.com.app.web.rest.TestUtil.createFormattingConversionService;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.hamcrest.Matchers.hasItem;
+import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -62,14 +70,22 @@ public class TransferclassificationResourceIntTest {
     @Autowired
     private TransferclassificationRepository transferclassificationRepository;
 
+
+
     @Autowired
     private TransferclassificationMapper transferclassificationMapper;
+    
 
     @Autowired
     private TransferclassificationService transferclassificationService;
 
+    /**
+     * This repository is mocked in the testob.com.app.repository.search test package.
+     *
+     * @see testob.com.app.repository.search.TransferclassificationSearchRepositoryMockConfiguration
+     */
     @Autowired
-    private TransferclassificationSearchRepository transferclassificationSearchRepository;
+    private TransferclassificationSearchRepository mockTransferclassificationSearchRepository;
 
     @Autowired
     private MappingJackson2HttpMessageConverter jacksonMessageConverter;
@@ -94,6 +110,7 @@ public class TransferclassificationResourceIntTest {
         this.restTransferclassificationMockMvc = MockMvcBuilders.standaloneSetup(transferclassificationResource)
             .setCustomArgumentResolvers(pageableArgumentResolver)
             .setControllerAdvice(exceptionTranslator)
+            .setConversionService(createFormattingConversionService())
             .setMessageConverters(jacksonMessageConverter).build();
     }
 
@@ -116,7 +133,6 @@ public class TransferclassificationResourceIntTest {
 
     @Before
     public void initTest() {
-        transferclassificationSearchRepository.deleteAll();
         transferclassification = createEntity(em);
     }
 
@@ -144,8 +160,7 @@ public class TransferclassificationResourceIntTest {
         assertThat(testTransferclassification.getComments()).isEqualTo(DEFAULT_COMMENTS);
 
         // Validate the Transferclassification in Elasticsearch
-        Transferclassification transferclassificationEs = transferclassificationSearchRepository.findOne(testTransferclassification.getId());
-        assertThat(transferclassificationEs).isEqualToComparingFieldByField(testTransferclassification);
+        verify(mockTransferclassificationSearchRepository, times(1)).save(testTransferclassification);
     }
 
     @Test
@@ -166,6 +181,9 @@ public class TransferclassificationResourceIntTest {
         // Validate the Transferclassification in the database
         List<Transferclassification> transferclassificationList = transferclassificationRepository.findAll();
         assertThat(transferclassificationList).hasSize(databaseSizeBeforeCreate);
+
+        // Validate the Transferclassification in Elasticsearch
+        verify(mockTransferclassificationSearchRepository, times(0)).save(transferclassification);
     }
 
     @Test
@@ -281,6 +299,7 @@ public class TransferclassificationResourceIntTest {
             .andExpect(jsonPath("$.[*].isInternalTransfer").value(hasItem(DEFAULT_IS_INTERNAL_TRANSFER.booleanValue())))
             .andExpect(jsonPath("$.[*].comments").value(hasItem(DEFAULT_COMMENTS.toString())));
     }
+    
 
     @Test
     @Transactional
@@ -314,11 +333,13 @@ public class TransferclassificationResourceIntTest {
     public void updateTransferclassification() throws Exception {
         // Initialize the database
         transferclassificationRepository.saveAndFlush(transferclassification);
-        transferclassificationSearchRepository.save(transferclassification);
+
         int databaseSizeBeforeUpdate = transferclassificationRepository.findAll().size();
 
         // Update the transferclassification
-        Transferclassification updatedTransferclassification = transferclassificationRepository.findOne(transferclassification.getId());
+        Transferclassification updatedTransferclassification = transferclassificationRepository.findById(transferclassification.getId()).get();
+        // Disconnect from session so that the updates on updatedTransferclassification are not directly saved in db
+        em.detach(updatedTransferclassification);
         updatedTransferclassification
             .code(UPDATED_CODE)
             .name(UPDATED_NAME)
@@ -345,8 +366,7 @@ public class TransferclassificationResourceIntTest {
         assertThat(testTransferclassification.getComments()).isEqualTo(UPDATED_COMMENTS);
 
         // Validate the Transferclassification in Elasticsearch
-        Transferclassification transferclassificationEs = transferclassificationSearchRepository.findOne(testTransferclassification.getId());
-        assertThat(transferclassificationEs).isEqualToComparingFieldByField(testTransferclassification);
+        verify(mockTransferclassificationSearchRepository, times(1)).save(testTransferclassification);
     }
 
     @Test
@@ -366,6 +386,9 @@ public class TransferclassificationResourceIntTest {
         // Validate the Transferclassification in the database
         List<Transferclassification> transferclassificationList = transferclassificationRepository.findAll();
         assertThat(transferclassificationList).hasSize(databaseSizeBeforeUpdate + 1);
+
+        // Validate the Transferclassification in Elasticsearch
+        verify(mockTransferclassificationSearchRepository, times(0)).save(transferclassification);
     }
 
     @Test
@@ -373,7 +396,7 @@ public class TransferclassificationResourceIntTest {
     public void deleteTransferclassification() throws Exception {
         // Initialize the database
         transferclassificationRepository.saveAndFlush(transferclassification);
-        transferclassificationSearchRepository.save(transferclassification);
+
         int databaseSizeBeforeDelete = transferclassificationRepository.findAll().size();
 
         // Get the transferclassification
@@ -381,13 +404,12 @@ public class TransferclassificationResourceIntTest {
             .accept(TestUtil.APPLICATION_JSON_UTF8))
             .andExpect(status().isOk());
 
-        // Validate Elasticsearch is empty
-        boolean transferclassificationExistsInEs = transferclassificationSearchRepository.exists(transferclassification.getId());
-        assertThat(transferclassificationExistsInEs).isFalse();
-
         // Validate the database is empty
         List<Transferclassification> transferclassificationList = transferclassificationRepository.findAll();
         assertThat(transferclassificationList).hasSize(databaseSizeBeforeDelete - 1);
+
+        // Validate the Transferclassification in Elasticsearch
+        verify(mockTransferclassificationSearchRepository, times(1)).deleteById(transferclassification.getId());
     }
 
     @Test
@@ -395,8 +417,8 @@ public class TransferclassificationResourceIntTest {
     public void searchTransferclassification() throws Exception {
         // Initialize the database
         transferclassificationRepository.saveAndFlush(transferclassification);
-        transferclassificationSearchRepository.save(transferclassification);
-
+    when(mockTransferclassificationSearchRepository.search(queryStringQuery("id:" + transferclassification.getId()), PageRequest.of(0, 20)))
+        .thenReturn(new PageImpl<>(Collections.singletonList(transferclassification), PageRequest.of(0, 1), 1));
         // Search the transferclassification
         restTransferclassificationMockMvc.perform(get("/api/_search/transferclassifications?query=id:" + transferclassification.getId()))
             .andExpect(status().isOk())

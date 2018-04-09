@@ -7,9 +7,11 @@ import testob.com.app.service.dto.AddressDTO;
 import testob.com.app.service.mapper.AddressMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Optional;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -54,9 +56,9 @@ public class AddressService {
     }
 
     /**
-     *  Get all the addresses.
+     * Get all the addresses.
      *
-     *  @return the list of entities
+     * @return the list of entities
      */
     @Transactional(readOnly = true)
     public List<AddressDTO> findAll() {
@@ -66,35 +68,36 @@ public class AddressService {
             .collect(Collectors.toCollection(LinkedList::new));
     }
 
+
     /**
-     *  Get one address by id.
+     * Get one address by id.
      *
-     *  @param id the id of the entity
-     *  @return the entity
+     * @param id the id of the entity
+     * @return the entity
      */
     @Transactional(readOnly = true)
-    public AddressDTO findOne(Long id) {
+    public Optional<AddressDTO> findOne(Long id) {
         log.debug("Request to get Address : {}", id);
-        Address address = addressRepository.findOne(id);
-        return addressMapper.toDto(address);
+        return addressRepository.findById(id)
+            .map(addressMapper::toDto);
     }
 
     /**
-     *  Delete the  address by id.
+     * Delete the address by id.
      *
-     *  @param id the id of the entity
+     * @param id the id of the entity
      */
     public void delete(Long id) {
         log.debug("Request to delete Address : {}", id);
-        addressRepository.delete(id);
-        addressSearchRepository.delete(id);
+        addressRepository.deleteById(id);
+        addressSearchRepository.deleteById(id);
     }
 
     /**
      * Search for the address corresponding to the query.
      *
-     *  @param query the query of the search
-     *  @return the list of entities
+     * @param query the query of the search
+     * @return the list of entities
      */
     @Transactional(readOnly = true)
     public List<AddressDTO> search(String query) {

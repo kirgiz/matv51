@@ -2,10 +2,10 @@ package testob.com.app.web.rest;
 
 import com.codahale.metrics.annotation.Timed;
 import testob.com.app.service.MaterialhistoryService;
+import testob.com.app.web.rest.errors.BadRequestAlertException;
 import testob.com.app.web.rest.util.HeaderUtil;
 import testob.com.app.web.rest.util.PaginationUtil;
 import testob.com.app.service.dto.MaterialhistoryDTO;
-import io.swagger.annotations.ApiParam;
 import io.github.jhipster.web.util.ResponseUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -55,7 +55,7 @@ public class MaterialhistoryResource {
     public ResponseEntity<MaterialhistoryDTO> createMaterialhistory(@Valid @RequestBody MaterialhistoryDTO materialhistoryDTO) throws URISyntaxException {
         log.debug("REST request to save Materialhistory : {}", materialhistoryDTO);
         if (materialhistoryDTO.getId() != null) {
-            return ResponseEntity.badRequest().headers(HeaderUtil.createFailureAlert(ENTITY_NAME, "idexists", "A new materialhistory cannot already have an ID")).body(null);
+            throw new BadRequestAlertException("A new materialhistory cannot already have an ID", ENTITY_NAME, "idexists");
         }
         MaterialhistoryDTO result = materialhistoryService.save(materialhistoryDTO);
         return ResponseEntity.created(new URI("/api/materialhistories/" + result.getId()))
@@ -89,14 +89,20 @@ public class MaterialhistoryResource {
      * GET  /materialhistories : get all the materialhistories.
      *
      * @param pageable the pagination information
+     * @param eagerload flag to eager load entities from relationships (This is applicable for many-to-many)
      * @return the ResponseEntity with status 200 (OK) and the list of materialhistories in body
      */
     @GetMapping("/materialhistories")
     @Timed
-    public ResponseEntity<List<MaterialhistoryDTO>> getAllMaterialhistories(@ApiParam Pageable pageable) {
+    public ResponseEntity<List<MaterialhistoryDTO>> getAllMaterialhistories(Pageable pageable, @RequestParam(required = false, defaultValue = "false") boolean eagerload) {
         log.debug("REST request to get a page of Materialhistories");
-        Page<MaterialhistoryDTO> page = materialhistoryService.findAll(pageable);
-        HttpHeaders headers = PaginationUtil.generatePaginationHttpHeaders(page, "/api/materialhistories");
+        Page<MaterialhistoryDTO> page;
+        if (eagerload) {
+            page = materialhistoryService.findAllWithEagerRelationships(pageable);
+        } else {
+            page = materialhistoryService.findAll(pageable);
+        }
+        HttpHeaders headers = PaginationUtil.generatePaginationHttpHeaders(page, String.format("/api/materialhistories?eagerload=%b", eagerload));
         return new ResponseEntity<>(page.getContent(), headers, HttpStatus.OK);
     }
 
@@ -110,8 +116,8 @@ public class MaterialhistoryResource {
     @Timed
     public ResponseEntity<MaterialhistoryDTO> getMaterialhistory(@PathVariable Long id) {
         log.debug("REST request to get Materialhistory : {}", id);
-        MaterialhistoryDTO materialhistoryDTO = materialhistoryService.findOne(id);
-        return ResponseUtil.wrapOrNotFound(Optional.ofNullable(materialhistoryDTO));
+        Optional<MaterialhistoryDTO> materialhistoryDTO = materialhistoryService.findOne(id);
+        return ResponseUtil.wrapOrNotFound(materialhistoryDTO);
     }
 
     /**
@@ -138,7 +144,7 @@ public class MaterialhistoryResource {
      */
     @GetMapping("/_search/materialhistories")
     @Timed
-    public ResponseEntity<List<MaterialhistoryDTO>> searchMaterialhistories(@RequestParam String query, @ApiParam Pageable pageable) {
+    public ResponseEntity<List<MaterialhistoryDTO>> searchMaterialhistories(@RequestParam String query, Pageable pageable) {
         log.debug("REST request to search for a page of Materialhistories for query {}", query);
         Page<MaterialhistoryDTO> page = materialhistoryService.search(query, pageable);
         HttpHeaders headers = PaginationUtil.generateSearchPaginationHttpHeaders(query, page, "/api/_search/materialhistories");

@@ -1,11 +1,13 @@
 package testob.com.app.domain;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import org.hibernate.annotations.Cache;
 import org.hibernate.annotations.CacheConcurrencyStrategy;
-import org.springframework.data.elasticsearch.annotations.Document;
 
 import javax.persistence.*;
 import javax.validation.constraints.*;
+
+import org.springframework.data.elasticsearch.annotations.Document;
 import java.io.Serializable;
 import java.time.LocalDate;
 import java.util.Objects;
@@ -36,6 +38,7 @@ public class Forexrates implements Serializable {
 
     @ManyToOne(optional = false)
     @NotNull
+    @JsonIgnoreProperties("currencyRates")
     private Currency rateForCurrency;
 
     // jhipster-needle-entity-add-field - JHipster will add fields here, do not remove
@@ -112,7 +115,7 @@ public class Forexrates implements Serializable {
         return "Forexrates{" +
             "id=" + getId() +
             ", rateDate='" + getRateDate() + "'" +
-            ", straighRate='" + getStraighRate() + "'" +
+            ", straighRate=" + getStraighRate() +
             "}";
     }
 }
